@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual envs
+.venv/
+venv/
+
+# Local tooling artifacts
+.codex
+.remember/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Runtime data / secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite data and backups
+/data/*.db
+/data/backups/*.db
+/data/reports/*.html
+
+# Optional local logs
+*.log

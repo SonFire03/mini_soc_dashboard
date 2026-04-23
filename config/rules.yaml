@@ -1,0 +1,29 @@
+suspicious_user_agents:
+  - sqlmap
+  - nikto
+  - nmap
+  - dirbuster
+  - masscan
+  - curl/
+suspicious_patterns:
+  - union select
+  - or 1=1
+  - ../
+  - <script
+  - xp_cmdshell
+admin_paths:
+  - /admin
+failed_login_markers:
+  - login
+  - signin
+  - auth
+thresholds:
+  bruteforce:
+    attempts: 5
+    window_minutes: 10
+  login_success_after_failures:
+    failed_attempts: 3
+    window_minutes: 10
+  error_spike_5xx:
+    errors: 7
+    window_minutes: 5
