@@ -1,142 +1,368 @@
 # Mini SOC Dashboard
 
-Mini dashboard SOC web: ingestion de logs, détection d'événements suspects, alertes, statistiques, timeline et filtres de recherche.
+FR/EN documentation for a lightweight SOC dashboard built with FastAPI and SQLite.
 
-## Stack
+---
 
-- Backend: FastAPI
-- Storage: SQLite (`data/soc.db`)
-- Frontend: HTML/CSS/JS
-- Conteneurisation: Docker
+## 🇫🇷 Français
 
-## Tout connecter en local
+### Vue d’ensemble
+Mini SOC Dashboard est une application web orientée Blue Team pour :
+- ingérer des logs applicatifs,
+- détecter des comportements suspects,
+- suivre les alertes et incidents,
+- produire des rapports opérationnels.
 
-```bash
-make connect
+Le projet est adapté à la démonstration SOC, aux labs de détection, et comme base de travail pour des évolutions plus avancées.
+
+### Fonctionnalités
+
+#### Ingestion & parsing
+- Ingestion de logs via fichier (`POST /api/logs/ingest`) et JSON (`POST /api/logs/ingest-json`).
+- Parsing JSON lines + format Apache/Nginx-like.
+- Live tail de fichier local (`/api/live-tail/*`).
+
+#### Détection
+- Règles unitaires :
+  - `failed-login-attempt`
+  - `suspicious-user-agent`
+  - `injection-or-traversal`
+  - `admin-access-denied`
+- Règles corrélées / batch :
+  - `possible-bruteforce`
+  - `possible-account-compromise`
+  - `error-spike-5xx`
+- Corrélation multi-signaux par IP : `correlated-attack-chain`.
+- IOC watchlist (IP/path/user-agent/text) avec override de sévérité.
+
+#### Opérations SOC
+- Gestion d’alertes (statut, assignation, note, occurrences).
+- Contexte d’alerte (logs liés, événements incidents, playbook).
+- Timeline incident.
+- Case management (cases, actions, commentaires, lien case↔alert).
+- Suppressions temporaires (TTL).
+- Asset mapping (IP/CIDR ou path prefix) + criticité.
+- Policies automatiques (création de case, escalation, notification).
+
+#### Reporting & export
+- KPI SOC (`/api/stats`), radar risque, delta report.
+- Rapport quotidien HTML (`/api/reports/daily`, `/reports/daily`).
+- Scheduler de rapports.
+- Export CSV logs/alertes.
+
+#### Administration
+- Healthcheck, backup/restore SQLite, reset admin, wallboard.
+
+### Architecture
+- **Backend**: FastAPI
+- **Storage**: SQLite (`data/soc.db`)
+- **Frontend**: HTML/CSS/JS natif
+- **Config règles**: `config/rules.yaml`
+- **Migrations**: Alembic
+- **Qualité**: pytest, ruff, mypy, CI GitHub Actions
+
+### Structure du projet
+```text
+app/
+  main.py            # Routes API + orchestration
+  parser.py          # Normalisation logs
+  detector.py        # Registre de règles
+  database.py        # Accès SQLite + schéma
+  rules.py           # Chargement rules.yaml
+  schemas.py         # Validation payloads (Pydantic)
+  notifier.py        # Webhook alertes
+  tailer.py          # Live tail
+  playbook.py        # Playbooks SOC
+  templates/         # UI HTML
+  static/            # UI CSS/JS
+
+config/
+  rules.yaml
+
+data/
+  sample.log
+
+alembic/
+  versions/
+
+tests/
+  test_*.py
 ```
 
-`make connect` installe les deps puis choisit automatiquement un port libre entre `8000` et `8005`.
-Puis ouvre l'URL affichee dans le terminal et importe `data/sample.log`.
-Connexion par defaut: `admin / admin123`.
+### Prérequis
+- Python 3.11+
+- pip
+- (optionnel) Docker + Docker Compose
 
-Pour changer les identifiants:
-
+### Installation locale
 ```bash
-SOC_DASHBOARD_USERNAME=socadmin SOC_DASHBOARD_PASSWORD='strong-pass' make run
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Pour activer notifications webhook:
+Accès : `http://localhost:8000`
 
+Identifiants par défaut :
+- user: `admin`
+- password: `admin123`
+
+### Lancement Docker
 ```bash
-SOC_WEBHOOK_URL='https://example.webhook' SOC_WEBHOOK_MIN_SEVERITY=high make run
+docker compose up --build
 ```
 
-Si tu veux imposer un port:
+### Configuration (variables d’environnement)
 
+#### Auth
+- `SOC_DASHBOARD_USERNAME` (default `admin`)
+- `SOC_DASHBOARD_PASSWORD` (default `admin123`)
+- `SOC_DASHBOARD_SECRET`
+
+#### Ingestion
+- `SOC_INGEST_API_KEY` (header `X-API-Key`)
+- `SOC_INGEST_RATE_LIMIT_PER_MIN` (default `120`)
+- `SOC_INGEST_MAX_BYTES` (default `5242880`)
+
+#### Notifications
+- `SOC_WEBHOOK_URL`
+- `SOC_WEBHOOK_MIN_SEVERITY` (`low|medium|high`, default `high`)
+
+#### Auto-escalation
+- `SOC_ESCALATE_MINUTES` (default `20`)
+- `SOC_ESCALATE_ASSIGNEE` (default `soc-escalation`)
+
+#### Rétention
+- `SOC_RETENTION_LOGS_DAYS` (default `30`)
+- `SOC_RETENTION_ALERTS_DAYS` (default `90`)
+- `SOC_RETENTION_EVENTS_DAYS` (default `90`)
+- `SOC_RETENTION_REPORTS_DAYS` (default `30`)
+- `SOC_RETENTION_BACKUPS_DAYS` (default `30`)
+
+### Base de données et migrations
 ```bash
-make run PORT=8010
+alembic upgrade head
+# ou
+make migrate
 ```
 
-## Commandes utiles
+Migration baseline incluse : `20260423_0001`.
 
-```bash
-make test       # tests unitaires + intégration API
-make docker-up  # exécution via Docker
-make docker-down
-alembic upgrade head  # migrations DB versionnées
-```
+### API principale
 
-## API principale
-
+#### Santé / settings / metrics
 - `GET /api/health`
-- `POST /api/logs/ingest` (upload log file)
-- `POST /api/logs/ingest-json` (JSON lines direct)
-- `GET /api/logs?q=&ip=&method=&status_code=&user_agent=&start=&end=`
-- `GET /api/logs?...&limit=200&offset=0` (pagination standard)
-- `GET /api/logs?dsl=ip:1.2.3.4 method:POST code:401`
-- `GET /api/alerts?severity=&alert_type=&q=&ip=`
-- `GET /api/alerts?...&limit=200&offset=0` (pagination standard)
-- `GET /api/alerts?dsl=severity:high type:possible-bruteforce`
-- `PATCH /api/alerts/{id}` (status/assignee/note)
-- `GET /api/alerts/{id}/context` (drill-down logs/events/playbook)
-- `GET /api/stats`
-- `GET /api/risk/entities?since_hours=24`
-- `GET /api/sla`
-- `GET /api/incidents/timeline`
-- `POST /api/live-tail/start`
-- `POST /api/live-tail/stop`
-- `GET /api/live-tail/status`
-- `POST /api/admin/reset` (purge logs + alerts)
-- `GET /api/export/logs.csv`
-- `GET /api/export/alerts.csv`
-- `GET /api/playbook/{alert_type}`
 - `GET /api/settings`
-- `GET /api/metrics` (format Prometheus text)
-- `GET/POST/DELETE /api/assets`
-- `GET/POST/DELETE /api/suppressions`
-- `GET/POST/DELETE /api/saved-views`
-- `GET /api/reports/daily`
-- `GET /reports/daily` (print-ready HTML report)
-- `GET/POST/PATCH/DELETE /api/reports/schedules`
-- `POST /api/reports/schedules/{id}/run`
-- `GET /api/reports/runs`
+- `GET /api/metrics`
+
+#### Logs & alertes
+- `POST /api/logs/ingest`
+- `POST /api/logs/ingest-json`
+- `GET /api/logs?...&limit=200&offset=0`
+- `GET /api/alerts?...&limit=200&offset=0`
+- DSL: `dsl=ip:1.2.3.4 method:POST code:401`
+- `PATCH /api/alerts/{id}`
+- `GET /api/alerts/{id}/context`
+- `GET /api/playbook/{alert_type}`
+
+#### Cases & incidents
 - `GET/POST/PATCH /api/cases`
 - `POST/DELETE /api/cases/{case_id}/alerts/{alert_id}`
 - `GET /api/cases/{case_id}`
-- `GET/POST /api/cases/{case_id}/comments`
-- `DELETE /api/cases/{case_id}/comments/{comment_id}`
-- `GET/POST/PATCH/DELETE /api/iocs` (IOC watchlist)
-- `GET/POST/PATCH/DELETE /api/policies` (policy engine)
-- `GET /api/reports/delta?since_hours=24`
+- `GET/POST/DELETE /api/cases/{case_id}/comments`
+- `GET /api/incidents/timeline`
+
+#### IOC / policies / assets / suppressions
+- `GET/POST/PATCH/DELETE /api/iocs`
+- `GET/POST/PATCH/DELETE /api/policies`
+- `GET/POST/DELETE /api/assets`
+- `GET/POST/DELETE /api/suppressions`
+
+#### Reports / export / admin
+- `GET /api/stats`
+- `GET /api/risk/entities`
+- `GET /api/reports/daily`
+- `GET /reports/daily`
+- `GET/POST/PATCH/DELETE /api/reports/schedules`
+- `POST /api/reports/schedules/{id}/run`
+- `GET /api/reports/runs`
+- `GET /api/reports/delta`
+- `GET /api/export/logs.csv`
+- `GET /api/export/alerts.csv`
 - `GET /api/admin/backups`
 - `POST /api/admin/backup`
-- `POST /api/admin/restore` (`{"backup_name":"soc-YYYYMMDD-HHMMSS.db"}` or latest if empty)
-- `WS /ws/live` (heartbeat + events)
-- `GET /wallboard` (mode mur SOC)
+- `POST /api/admin/restore`
+- `POST /api/admin/reset`
 
-## Detections incluses
+#### Live updates
+- `WS /ws/live`
+- `POST /api/live-tail/start`
+- `POST /api/live-tail/stop`
+- `GET /api/live-tail/status`
 
-- `failed-login-attempt`
-- `possible-bruteforce`
-- `possible-account-compromise` (login reussi apres echecs)
-- `error-spike-5xx`
-- `injection-or-traversal`
-- `suspicious-user-agent`
-- `admin-access-denied`
+### Détection et extensibilité
+`app/detector.py` utilise un registre de règles :
+- `register_single_rule`
+- `register_batch_rule`
 
-## Règles configurables
+Pour ajouter une règle :
+1. créer la fonction de détection,
+2. l’enregistrer,
+3. ajouter les tests associés.
 
-Le moteur charge `config/rules.yaml` à chaud:
-- user-agents et patterns suspects
-- chemins admin et marqueurs login
-- seuils bruteforce / compromission / spike 5xx
+### Sécurité & bonnes pratiques
+- Ne pas committer de secrets ni de logs de production.
+- Changer les credentials par défaut.
+- Activer `SOC_INGEST_API_KEY` en environnement exposé.
+- Déployer derrière HTTPS + reverse proxy + contrôle d’accès.
 
-Tu peux modifier ce fichier sans toucher au code.
+### Observabilité
+- Endpoint métriques: `GET /api/metrics` (format texte Prometheus).
+- Exemples :
+  - `ingest_requests_total`
+  - `ingest_lines_total`
+  - `ingest_alerts_total`
+  - `ingest_rate_limited_total`
+  - `ws_connections_total`
+  - `backup_success_total`
 
-## Fonctions SOC avancées
+### Qualité, tests, CI
+Local :
+```bash
+make test
+make lint
+make typecheck
+```
 
-- Mapping MITRE ATT&CK par alerte (tactique + technique).
-- Inventory d'assets avec criticite (`low/medium/high/critical`), matching par IP/CIDR ou `path_prefix`.
-- Suppression rules avec expiration (`ttl_minutes`) pour réduire le bruit.
-- Incident timeline unifiee (creation et mise a jour d'alertes).
-- Deduplication d'alertes proche-temps via compteur `occurrences`.
-- Query DSL (`key:value`) pour hunts rapides.
-- Saved views pour memoriser des recherches SOC frequentes.
-- Drill-down d'alerte avec explainability (`explain_text`) + contexte.
-- Rapport journalier HTML imprimable (PDF-ready via navigateur).
-- Case management (multi-alertes, owner, priorite, actions).
-- Metriques SLA (MTTA / MTTR moyens).
-- Scheduler de rapports journaliers avec execution automatique UTC.
-- WebSocket live updates (events cases/alerts/reports/reset).
-- IOC watchlist (IP/path/user-agent/text) avec severite override.
-- Policy engine (condition DSL simple `key==value AND ...`) avec actions auto-case/escalade/notif.
-- Auto-escalation des alertes `high/critical` non traitees apres un seuil configurable.
-- Backup/restore SQLite avec historique d'operations.
-- Rétention auto (logs/alertes/events/reports/backups) configurable via variables `SOC_RETENTION_*`.
-- Protection ingestion: rate limit (`SOC_INGEST_RATE_LIMIT_PER_MIN`) et limite taille payload (`SOC_INGEST_MAX_BYTES`).
-- Delta report pour suivre l'evolution des alertes sur une fenetre temporelle.
-- Correlation engine (chaine d'attaque multi-signaux sur une IP).
-- Risk radar (scores IP/user/asset + delta sur fenetre precedente).
-- Commentaires de case pour le suivi analyste.
-- Option de securisation ingestion via `SOC_INGEST_API_KEY` (`X-API-Key`).
-- Wallboard mode (vue ecran SOC epuree).
+CI GitHub Actions (`.github/workflows/ci.yml`) :
+1. install deps,
+2. `ruff check .`,
+3. `mypy app`,
+4. `pytest -q`.
+
+### Troubleshooting
+- `ModuleNotFoundError`: installer `requirements.txt` dans le venv.
+- Port occupé: changer `--port`.
+- Schéma DB: relancer `alembic upgrade head`.
+- Pas d’alertes: vérifier format logs + `config/rules.yaml` + filtres.
+
+### Roadmap
+- migration FastAPI `on_event` -> `lifespan`,
+- RBAC analyst/admin,
+- authentification OIDC,
+- enrichissement threat intel,
+- pipeline d’ingestion asynchrone.
+
+---
+
+## 🇬🇧 English
+
+### Overview
+Mini SOC Dashboard is a lightweight **FastAPI + SQLite** web app to:
+- ingest logs,
+- detect suspicious activity,
+- triage alerts/incidents,
+- generate SOC-oriented reports.
+
+It is designed for local SOC demos, detection labs, and as a practical baseline for more advanced security operations workflows.
+
+### Features
+- Log ingestion (file and JSON API).
+- JSON line and Apache/Nginx-like parsing.
+- Detection rules (single-event and batch/correlated).
+- IOC watchlist with severity override.
+- Alert lifecycle management.
+- Incident timeline + case management.
+- Asset mapping and suppression rules.
+- Policy engine (auto-create case/escalate/notify).
+- Reporting (daily, scheduled, delta) and CSV export.
+- Live websocket updates and file live tail.
+- Backup/restore and admin reset operations.
+
+### Tech stack
+- Backend: FastAPI
+- DB: SQLite
+- Frontend: vanilla HTML/CSS/JS
+- Rules: YAML
+- Migrations: Alembic
+- QA: pytest, ruff, mypy, GitHub Actions
+
+### Project layout
+```text
+app/        # API, detection, parsing, schemas, UI assets
+actions/    # (none, CI is under .github/workflows)
+config/     # rule configuration
+data/       # sample data
+alembic/    # DB migrations
+tests/      # test suite
+```
+
+### Local setup
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Open: `http://localhost:8000`
+
+Default credentials:
+- user: `admin`
+- password: `admin123`
+
+### Docker
+```bash
+docker compose up --build
+```
+
+### Environment variables
+- Auth: `SOC_DASHBOARD_USERNAME`, `SOC_DASHBOARD_PASSWORD`, `SOC_DASHBOARD_SECRET`
+- Ingestion: `SOC_INGEST_API_KEY`, `SOC_INGEST_RATE_LIMIT_PER_MIN`, `SOC_INGEST_MAX_BYTES`
+- Notifications: `SOC_WEBHOOK_URL`, `SOC_WEBHOOK_MIN_SEVERITY`
+- Auto-escalation: `SOC_ESCALATE_MINUTES`, `SOC_ESCALATE_ASSIGNEE`
+- Retention: `SOC_RETENTION_LOGS_DAYS`, `SOC_RETENTION_ALERTS_DAYS`, `SOC_RETENTION_EVENTS_DAYS`, `SOC_RETENTION_REPORTS_DAYS`, `SOC_RETENTION_BACKUPS_DAYS`
+
+### Migrations
+```bash
+alembic upgrade head
+# or
+make migrate
+```
+
+### Main API groups
+- Health/settings/metrics
+- Log ingestion/query
+- Alert query/update/context
+- Cases/comments/incident timeline
+- IOC/policies/assets/suppressions
+- Reports/export/admin
+- Live websocket and live tail
+
+### Security notes
+- Never commit secrets or real production logs.
+- Change default credentials immediately.
+- Enable API key ingestion on exposed environments.
+- Run behind HTTPS and access controls.
+
+### Quality and CI
+Local commands:
+```bash
+make test
+make lint
+make typecheck
+```
+
+CI pipeline runs `ruff`, `mypy`, and `pytest` on push/PR.
+
+### Troubleshooting
+- Missing dependencies: reinstall `requirements.txt` in your venv.
+- DB schema mismatch: run `alembic upgrade head`.
+- No alerts generated: validate input log format, rules config, and query filters.
+
+---
+
+Contributions are welcome.
