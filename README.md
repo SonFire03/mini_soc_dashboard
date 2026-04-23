@@ -59,6 +59,11 @@ Le projet est adapté à la démonstration SOC, aux labs de détection, et comme
 #### Administration
 - Healthcheck, backup/restore SQLite, reset admin, wallboard.
 
+### Aperçu visuel
+![Dashboard](assets/screenshots/dashboard.png)
+![Alerts](assets/screenshots/alerts.png)
+![Reports](assets/screenshots/reports.png)
+
 ### Architecture
 - **Backend**: FastAPI
 - **Storage**: SQLite (`data/soc.db`)
@@ -287,6 +292,11 @@ It is designed for local SOC demos, detection labs, and as a practical baseline 
 - Reporting (daily, scheduled, delta) and CSV export.
 - Live websocket updates and file live tail.
 - Backup/restore and admin reset operations.
+
+### Visual preview
+![Dashboard](assets/screenshots/dashboard.png)
+![Alerts](assets/screenshots/alerts.png)
+![Reports](assets/screenshots/reports.png)
 
 ### Tech stack
 - Backend: FastAPI
