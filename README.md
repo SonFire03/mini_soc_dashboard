@@ -127,8 +127,6 @@ docker compose up --build
 - `SOC_DASHBOARD_PASSWORD` (default `admin123`)
 - `SOC_DASHBOARD_SECRET`
 
-<img width="1761" height="1217" alt="image" src="https://github.com/user-attachments/assets/4f4d2f65-104c-4cd3-95e3-6d3fe338e0d2" />
-
 
 #### Ingestion
 - `SOC_INGEST_API_KEY` (header `X-API-Key`)
