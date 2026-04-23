@@ -15,12 +15,18 @@ Mini SOC Dashboard est une application web orientée Blue Team pour :
 
 Le projet est adapté à la démonstration SOC, aux labs de détection, et comme base de travail pour des évolutions plus avancées.
 
+<img width="1761" height="1217" alt="image" src="https://github.com/user-attachments/assets/75cedf6c-652c-4f27-93fd-2a4d995c5427" />
+
+
 ### Fonctionnalités
 
 #### Ingestion & parsing
 - Ingestion de logs via fichier (`POST /api/logs/ingest`) et JSON (`POST /api/logs/ingest-json`).
 - Parsing JSON lines + format Apache/Nginx-like.
 - Live tail de fichier local (`/api/live-tail/*`).
+
+<img width="1761" height="1217" alt="image" src="https://github.com/user-attachments/assets/d0563358-dcbb-49c2-8709-2bae5a98c669" />
+
 
 #### Détection
 - Règles unitaires :
@@ -120,6 +126,9 @@ docker compose up --build
 - `SOC_DASHBOARD_USERNAME` (default `admin`)
 - `SOC_DASHBOARD_PASSWORD` (default `admin123`)
 - `SOC_DASHBOARD_SECRET`
+
+<img width="1761" height="1217" alt="image" src="https://github.com/user-attachments/assets/4f4d2f65-104c-4cd3-95e3-6d3fe338e0d2" />
+
 
 #### Ingestion
 - `SOC_INGEST_API_KEY` (header `X-API-Key`)
