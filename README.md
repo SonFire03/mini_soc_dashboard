@@ -117,8 +117,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Accès : `http://localhost:8000`
 
 Identifiants par défaut :
-- user: `admin`
-- password: `admin123`
+- user: `Change_moi`
+- password: `Change_moi`
 
 ### Lancement Docker
 ```bash
@@ -128,8 +128,8 @@ docker compose up --build
 ### Configuration (variables d’environnement)
 
 #### Auth
-- `SOC_DASHBOARD_USERNAME` (default `admin`)
-- `SOC_DASHBOARD_PASSWORD` (default `admin123`)
+- `SOC_DASHBOARD_USERNAME` (default `change_moi`)
+- `SOC_DASHBOARD_PASSWORD` (default `change_moi`)
 - `SOC_DASHBOARD_SECRET`
 
 
@@ -328,8 +328,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Open: `http://localhost:8000`
 
 Default credentials:
-- user: `admin`
-- password: `admin123`
+- user: `Change_me`
+- password: `Change_me`
 
 ### Docker
 ```bash
