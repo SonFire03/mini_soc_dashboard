@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from app.database import execute, init_db
-from app.main import create_asset, create_suppression, get_alerts, incidents_timeline, _store_logs
+from app.main import _store_logs, create_asset, create_suppression, get_alerts, incidents_timeline
 
 DB_PATH = Path("data/soc.db")
 

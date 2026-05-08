@@ -1,5 +1,5 @@
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
 
 from app.database import init_db
 from app.main import (
@@ -34,7 +34,7 @@ def test_correlation_engine_creates_chain_alert() -> None:
 
 
 def test_risk_entities_exposes_top_scores() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ts1 = (now - timedelta(minutes=2)).isoformat().replace("+00:00", "Z")
     ts2 = (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
     _store_logs(

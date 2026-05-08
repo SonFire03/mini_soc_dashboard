@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 # Basic Apache/Nginx-like combined log parser.
@@ -13,7 +13,7 @@ LOG_RE = re.compile(
 
 def parse_ts(raw_ts: str | None = None) -> str:
     if not raw_ts:
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
     try:
         dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
         return dt.isoformat()
@@ -22,7 +22,7 @@ def parse_ts(raw_ts: str | None = None) -> str:
             dt = datetime.strptime(raw_ts, "%d/%b/%Y:%H:%M:%S %z")
             return dt.isoformat()
         except ValueError:
-            return datetime.now(timezone.utc).isoformat()
+            return datetime.now(UTC).isoformat()
 
 
 def normalize_log(item: str | dict[str, Any]) -> dict[str, Any]:

@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 import asyncio
-from collections import Counter
 import csv
-from datetime import datetime, timedelta, timezone
 import hashlib
-import ipaddress
 import io
+import ipaddress
 import json
 import logging
 import os
 import re
-from pathlib import Path
 import shutil
 import threading
 import time
+from collections import Counter
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, TypeVar
 
 from fastapi import FastAPI, File, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
@@ -54,10 +55,6 @@ from app.schemas import (
 )
 from app.tailer import LiveTailManager
 
-app = FastAPI(title="Mini SOC Dashboard")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
-
 AUTH_USER = os.getenv("SOC_DASHBOARD_USERNAME", "admin")
 AUTH_PASSWORD = os.getenv("SOC_DASHBOARD_PASSWORD", "admin123")
 AUTH_SECRET = os.getenv("SOC_DASHBOARD_SECRET", "soc-dev-secret")
@@ -92,9 +89,9 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 TModel = TypeVar("TModel", bound=BaseModel)
+OPTIONAL_UPLOAD_FILE = File(default=None)
 
 
-@app.on_event("startup")
 def startup() -> None:
     init_db()
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -104,9 +101,22 @@ def startup() -> None:
     _start_scheduler()
 
 
-@app.on_event("shutdown")
 def shutdown() -> None:
     _stop_scheduler()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    startup()
+    try:
+        yield
+    finally:
+        shutdown()
+
+
+app = FastAPI(title="Mini SOC Dashboard", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
 
 
 def _is_authenticated(request: Request) -> bool:
@@ -245,7 +255,7 @@ def health():
 @app.post("/api/logs/ingest")
 async def ingest_logs(
     request: Request,
-    file: UploadFile | None = File(default=None),
+    file: UploadFile | None = OPTIONAL_UPLOAD_FILE,
 ):
     _inc_metric("ingest_requests_total")
     if _ingest_rate_limited(request):
@@ -492,7 +502,7 @@ def _run_correlation_for_ip(ts: str, ip: str) -> None:
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
     except ValueError:
-        dt = datetime.now(timezone.utc)
+        dt = datetime.now(UTC)
     start = (dt - timedelta(minutes=20)).isoformat()
     rows = fetch_all(
         """
@@ -641,7 +651,7 @@ def _publish_live_event(event_type: str, payload: dict[str, Any]) -> None:
         _live_events.append(
             {
                 "seq": _event_seq,
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "ts": datetime.now(UTC).isoformat(),
                 "event_type": event_type,
                 "payload": payload,
             }
@@ -686,7 +696,7 @@ def _render_daily_report_html(report: dict[str, Any]) -> str:
 
 def _run_scheduled_report(schedule_id: int) -> dict[str, Any]:
     report = daily_report_data()
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     output_path = REPORTS_DIR / f"daily-report-{schedule_id}-{timestamp}.html"
     html = _render_daily_report_html(report)
     output_path.write_text(html, encoding="utf-8")
@@ -695,7 +705,7 @@ def _run_scheduled_report(schedule_id: int) -> dict[str, Any]:
         INSERT INTO report_runs(schedule_id, ts, output_path, status)
         VALUES(?, ?, ?, 'ok')
         """,
-        (schedule_id, datetime.now(timezone.utc).isoformat(), str(output_path)),
+        (schedule_id, datetime.now(UTC).isoformat(), str(output_path)),
     )
     _publish_live_event(
         "report_generated",
@@ -713,7 +723,7 @@ def _scheduler_loop() -> None:
             if now_epoch - _last_housekeeping_epoch > 300:
                 _run_retention_housekeeping()
                 _last_housekeeping_epoch = now_epoch
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             rows = fetch_all(
                 """
                 SELECT id, hour_utc, minute_utc, enabled, last_run_date
@@ -741,7 +751,7 @@ def _scheduler_loop() -> None:
                             INSERT INTO report_runs(schedule_id, ts, output_path, status)
                             VALUES(?, ?, ?, 'failed')
                             """,
-                            (schedule_id, datetime.now(timezone.utc).isoformat(), ""),
+                            (schedule_id, datetime.now(UTC).isoformat(), ""),
                         )
         except Exception as exc:
             logger.exception("scheduler.loop_error error=%s", exc)
@@ -752,7 +762,7 @@ def _scheduler_loop() -> None:
 def _auto_escalate_stale_alerts() -> None:
     threshold_minutes = int(os.getenv("SOC_ESCALATE_MINUTES", "20"))
     assignee = os.getenv("SOC_ESCALATE_ASSIGNEE", "soc-escalation")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = fetch_all(
         """
         SELECT id, ts, severity, status
@@ -775,7 +785,7 @@ def _ensure_default_policies() -> None:
     rows = fetch_all("SELECT id FROM policies")
     if rows:
         return
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     execute(
         """
         INSERT INTO policies(name, enabled, condition_expr, action_type, action_payload, created_at)
@@ -801,12 +811,12 @@ def _record_backup_run(action: str, status: str, backup_path: str, details: str 
         INSERT INTO backup_runs(ts, backup_path, action, status, details)
         VALUES(?, ?, ?, ?, ?)
         """,
-        (datetime.now(timezone.utc).isoformat(), backup_path, action, status, details),
+        (datetime.now(UTC).isoformat(), backup_path, action, status, details),
     )
 
 
 def _run_retention_housekeeping() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     logs_days = int(os.getenv("SOC_RETENTION_LOGS_DAYS", "30"))
     alerts_days = int(os.getenv("SOC_RETENTION_ALERTS_DAYS", "90"))
     events_days = int(os.getenv("SOC_RETENTION_EVENTS_DAYS", "90"))
@@ -830,7 +840,7 @@ def _run_retention_housekeeping() -> None:
     if REPORTS_DIR.exists():
         for path in REPORTS_DIR.glob("*.html"):
             try:
-                if datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc) < report_cutoff:
+                if datetime.fromtimestamp(path.stat().st_mtime, tz=UTC) < report_cutoff:
                     path.unlink(missing_ok=True)
                     removed_reports += 1
             except OSError:
@@ -841,7 +851,7 @@ def _run_retention_housekeeping() -> None:
     if BACKUPS_DIR.exists():
         for path in BACKUPS_DIR.glob("*.db"):
             try:
-                if datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc) < backup_cutoff:
+                if datetime.fromtimestamp(path.stat().st_mtime, tz=UTC) < backup_cutoff:
                     path.unlink(missing_ok=True)
                     removed_backups += 1
             except OSError:
@@ -891,12 +901,12 @@ def _mitre_for_alert_type(alert_type: str) -> tuple[str | None, str | None]:
 
 
 def _cleanup_expired_suppressions() -> None:
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
     execute_change("DELETE FROM suppressions WHERE expires_at <= ?", (now_iso,))
 
 
 def _is_suppressed(ip: str | None, alert_type: str, path: str | None) -> bool:
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
     rows = fetch_all(
         """
         SELECT ip, alert_type, path_pattern
@@ -956,7 +966,7 @@ def _record_incident_event(
     actor: str,
     ts: str | None = None,
 ) -> None:
-    event_ts = ts or datetime.now(timezone.utc).isoformat()
+    event_ts = ts or datetime.now(UTC).isoformat()
     execute(
         """
         INSERT INTO incident_events(ts, event_type, severity, alert_id, ip, title, details, actor)
@@ -1296,7 +1306,7 @@ def update_alert(alert_id: int, payload: dict[str, Any]):
         params.append(str(resolution_note)[:1000] or None)
 
     fields.append("updated_at = ?")
-    params.append(datetime.now(timezone.utc).isoformat())
+    params.append(datetime.now(UTC).isoformat())
     params.append(alert_id)
 
     execute_change(f"UPDATE alerts SET {', '.join(fields)} WHERE id = ?", tuple(params))
@@ -1322,7 +1332,7 @@ def update_alert(alert_id: int, payload: dict[str, Any]):
 
 @app.get("/api/risk/entities")
 def risk_entities(since_hours: int = Query(default=24, ge=1, le=24 * 30)):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     since = (now - timedelta(hours=since_hours)).isoformat()
     previous = (now - timedelta(hours=since_hours * 2)).isoformat()
     rows = fetch_all(
@@ -1376,7 +1386,7 @@ def risk_entities(since_hours: int = Query(default=24, ge=1, le=24 * 30)):
 
 @app.get("/api/analytics/overview")
 def analytics_overview(window_hours: int = Query(default=24, ge=1, le=24 * 30)):
-    since = (datetime.now(timezone.utc) - timedelta(hours=window_hours)).isoformat()
+    since = (datetime.now(UTC) - timedelta(hours=window_hours)).isoformat()
     rows = fetch_all(
         """
         SELECT severity, alert_type, COALESCE(ip, 'unknown') AS ip, mitre_tactic, mitre_technique
@@ -1465,7 +1475,7 @@ async def websocket_live(ws: WebSocket):
             if batch:
                 for event in batch[-50:]:
                     await ws.send_json(event)
-            await ws.send_json({"event_type": "heartbeat", "ts": datetime.now(timezone.utc).isoformat()})
+            await ws.send_json({"event_type": "heartbeat", "ts": datetime.now(UTC).isoformat()})
             await asyncio.sleep(2)
     except WebSocketDisconnect:
         return
@@ -1509,7 +1519,7 @@ def create_case(payload: dict[str, Any]):
     owner = str(parsed.owner or "").strip() or None
     description = str(parsed.description or "").strip() or None
     due_at = str(parsed.due_at or "").strip() or None
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     case_id = execute(
         """
         INSERT INTO cases(title, priority, status, owner, description, due_at, opened_at)
@@ -1560,10 +1570,10 @@ def update_case(case_id: int, payload: dict[str, Any]):
         params.append(status_str)
         if status_str == "investigating" and not current.get("first_response_at"):
             fields.append("first_response_at = ?")
-            params.append(datetime.now(timezone.utc).isoformat())
+            params.append(datetime.now(UTC).isoformat())
         if status_str == "closed":
             fields.append("closed_at = ?")
-            params.append(datetime.now(timezone.utc).isoformat())
+            params.append(datetime.now(UTC).isoformat())
     if owner is not None:
         fields.append("owner = ?")
         params.append(str(owner).strip() or None)
@@ -1589,7 +1599,7 @@ def update_case(case_id: int, payload: dict[str, Any]):
             INSERT INTO case_actions(case_id, ts, actor, action, details)
             VALUES(?, ?, ?, 'case_updated', ?)
             """,
-            (case_id, datetime.now(timezone.utc).isoformat(), str(parsed.actor or "analyst"), str(payload)),
+            (case_id, datetime.now(UTC).isoformat(), str(parsed.actor or "analyst"), str(payload)),
         )
         _publish_live_event("case_updated", {"case_id": case_id, "changes": payload})
 
@@ -1609,7 +1619,7 @@ def link_case_alert(case_id: int, alert_id: int):
     alert_exists = fetch_all("SELECT id FROM alerts WHERE id = ?", (alert_id,))
     if not case_exists or not alert_exists:
         return JSONResponse({"detail": "Case or alert not found"}, status_code=404)
-    linked_at = datetime.now(timezone.utc).isoformat()
+    linked_at = datetime.now(UTC).isoformat()
     execute(
         """
         INSERT OR IGNORE INTO case_alerts(case_id, alert_id, linked_at)
@@ -1636,7 +1646,7 @@ def unlink_case_alert(case_id: int, alert_id: int):
         INSERT INTO case_actions(case_id, ts, actor, action, details)
         VALUES(?, ?, 'analyst', 'alert_unlinked', ?)
         """,
-        (case_id, datetime.now(timezone.utc).isoformat(), f"alert_id={alert_id}"),
+        (case_id, datetime.now(UTC).isoformat(), f"alert_id={alert_id}"),
     )
     _publish_live_event("case_alert_unlinked", {"case_id": case_id, "alert_id": alert_id})
     return {"status": "ok"}
@@ -1718,7 +1728,7 @@ def create_case_comment(case_id: int, payload: dict[str, Any]):
         return JSONResponse({"detail": "Case not found"}, status_code=404)
     message = str(parsed.message).strip()
     author = str(parsed.author or "analyst").strip()[:120]
-    ts = datetime.now(timezone.utc).isoformat()
+    ts = datetime.now(UTC).isoformat()
     comment_id = execute(
         """
         INSERT INTO case_comments(case_id, ts, author, message)
@@ -1747,7 +1757,7 @@ def delete_case_comment(case_id: int, comment_id: int):
         INSERT INTO case_actions(case_id, ts, actor, action, details)
         VALUES(?, ?, 'analyst', 'comment_deleted', ?)
         """,
-        (case_id, datetime.now(timezone.utc).isoformat(), f"comment_id={comment_id}"),
+        (case_id, datetime.now(UTC).isoformat(), f"comment_id={comment_id}"),
     )
     _publish_live_event("case_comment_deleted", {"case_id": case_id, "comment_id": comment_id})
     return {"status": "ok"}
@@ -1813,7 +1823,7 @@ def create_saved_view(payload: dict[str, Any]):
     name = str(parsed.name).strip()
     target = str(parsed.target).strip().lower()
     query_dsl = str(parsed.query_dsl).strip()
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     view_id = execute(
         """
         INSERT INTO saved_views(name, target, query_dsl, created_at)
@@ -1851,7 +1861,7 @@ def alert_context(alert_id: int):
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
     except ValueError:
-        dt = datetime.now(timezone.utc)
+        dt = datetime.now(UTC)
     start_ts = (dt - timedelta(minutes=30)).isoformat()
     end_ts = (dt + timedelta(minutes=30)).isoformat()
     related_logs = fetch_all(
@@ -1904,7 +1914,7 @@ def daily_report_data():
         """
     )
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "stats": stats,
         "latest_alerts": latest_alerts,
         "top_open_alerts": top_open,
@@ -1943,7 +1953,7 @@ def create_report_schedule(payload: dict[str, Any]):
     hour_utc = int(parsed.hour_utc)
     minute_utc = int(parsed.minute_utc)
     enabled = 1 if bool(parsed.enabled) else 0
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     schedule_id = execute(
         """
         INSERT INTO report_schedules(name, hour_utc, minute_utc, enabled, created_at)
@@ -2016,7 +2026,7 @@ def run_report_schedule_now(schedule_id: int):
     result = _run_scheduled_report(schedule_id)
     execute_change(
         "UPDATE report_schedules SET last_run_date = ? WHERE id = ?",
-        (datetime.now(timezone.utc).strftime("%Y-%m-%d"), schedule_id),
+        (datetime.now(UTC).strftime("%Y-%m-%d"), schedule_id),
     )
     return {"status": "ok", **result}
 
@@ -2040,7 +2050,7 @@ def report_runs(limit: int = 100, offset: int = 0):
 
 @app.get("/api/reports/delta")
 def delta_report_data(since_hours: int = Query(default=24, ge=1, le=24 * 30)):
-    since_dt = datetime.now(timezone.utc) - timedelta(hours=since_hours)
+    since_dt = datetime.now(UTC) - timedelta(hours=since_hours)
     since_iso = since_dt.isoformat()
     logs_count = fetch_all("SELECT COUNT(*) AS c FROM logs WHERE ts >= ?", (since_iso,))[0]["c"]
     alerts = fetch_all(
@@ -2057,7 +2067,7 @@ def delta_report_data(since_hours: int = Query(default=24, ge=1, le=24 * 30)):
     type_counter = Counter(str(a.get("alert_type") or "unknown") for a in alerts)
     ip_counter = Counter(str(a.get("ip") or "unknown") for a in alerts if a.get("ip"))
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "since_hours": since_hours,
         "since_ts": since_iso,
         "logs_ingested": logs_count,
@@ -2098,7 +2108,7 @@ def create_ioc(payload: dict[str, Any]):
     ioc_value = str(parsed.ioc_value).strip()
     severity = str(parsed.severity_override).strip().lower()
     enabled = 1 if bool(parsed.enabled) else 0
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     ioc_id = execute(
         """
         INSERT INTO ioc_watchlist(ioc_type, ioc_value, severity_override, enabled, created_at)
@@ -2183,7 +2193,7 @@ def create_policy(payload: dict[str, Any]):
     action_type = str(parsed.action_type).strip()
     action_payload_obj = _parse_policy_payload(parsed.action_payload)
     enabled = 1 if bool(parsed.enabled) else 0
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     policy_id = execute(
         """
         INSERT INTO policies(name, enabled, condition_expr, action_type, action_payload, created_at)
@@ -2287,7 +2297,7 @@ def create_asset(payload: dict[str, Any]):
         except ValueError:
             return JSONResponse({"detail": "invalid ip_cidr"}, status_code=400)
 
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     asset_id = execute(
         """
         INSERT INTO assets(name, criticality, ip_cidr, path_prefix, owner, created_at)
@@ -2338,8 +2348,8 @@ def create_suppression(payload: dict[str, Any]):
     ttl_minutes = int(parsed.ttl_minutes)
     if not ip and not alert_type and not path_pattern:
         return JSONResponse({"detail": "at least one condition is required"}, status_code=400)
-    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)).isoformat()
-    created_at = datetime.now(timezone.utc).isoformat()
+    expires_at = (datetime.now(UTC) + timedelta(minutes=ttl_minutes)).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     suppression_id = execute(
         """
         INSERT INTO suppressions(ip, alert_type, path_pattern, reason, expires_at, created_at)
@@ -2421,7 +2431,7 @@ def list_backups(limit: int = 200, offset: int = 0):
 
 @app.post("/api/admin/backup")
 def create_backup():
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     filename = f"soc-{ts.strftime('%Y%m%d-%H%M%S')}.db"
     out_path = BACKUPS_DIR / filename
     try:
@@ -2461,7 +2471,7 @@ def restore_backup(payload: dict[str, Any]):
     if not source.exists():
         return JSONResponse({"detail": "backup not found"}, status_code=404)
 
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     pre_restore_snapshot = BACKUPS_DIR / f"pre-restore-{ts.strftime('%Y%m%d-%H%M%S')}.db"
     try:
         if DB_PATH.exists():

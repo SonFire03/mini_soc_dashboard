@@ -2,13 +2,13 @@ from pathlib import Path
 
 from app.database import execute, init_db
 from app.main import (
+    _store_logs,
     alert_context,
     create_saved_view,
     daily_report_data,
     get_alerts,
     get_logs,
     get_saved_views,
-    _store_logs,
 )
 
 DB_PATH = Path("data/soc.db")

@@ -3,9 +3,9 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 StoreLogsFn = Callable[[list[str]], dict[str, int]]
 
@@ -78,7 +78,7 @@ class LiveTailManager:
             return
 
         try:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as handle:
+            with open(file_path, encoding="utf-8", errors="ignore") as handle:
                 if not from_start:
                     handle.seek(0, os.SEEK_END)
 
