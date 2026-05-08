@@ -2,6 +2,8 @@
 
 FR/EN documentation for a lightweight SOC dashboard built with FastAPI and SQLite.
 
+Current release: **v1.3.0** (2026-05-08). See [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
 ## 🇫🇷 Français
@@ -52,6 +54,7 @@ Le projet est adapté à la démonstration SOC, aux labs de détection, et comme
 
 #### Reporting & export
 - KPI SOC (`/api/stats`), radar risque, delta report.
+- Vue analytique SOC agrégée (`/api/analytics/overview?window_hours=24`).
 - Rapport quotidien HTML (`/api/reports/daily`, `/reports/daily`).
 - Scheduler de rapports.
 - Export CSV logs/alertes.
@@ -168,6 +171,7 @@ Migration baseline incluse : `20260423_0001`.
 - `GET /api/health`
 - `GET /api/settings`
 - `GET /api/metrics`
+- `GET /api/analytics/overview?window_hours=24`
 
 #### Logs & alertes
 - `POST /api/logs/ingest`
@@ -290,6 +294,7 @@ It is designed for local SOC demos, detection labs, and as a practical baseline 
 - Asset mapping and suppression rules.
 - Policy engine (auto-create case/escalate/notify).
 - Reporting (daily, scheduled, delta) and CSV export.
+- Aggregated SOC analytics endpoint (`/api/analytics/overview`).
 - Live websocket updates and file live tail.
 - Backup/restore and admin reset operations.
 

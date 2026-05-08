@@ -61,6 +61,7 @@ templates = Jinja2Templates(directory="app/templates")
 AUTH_USER = os.getenv("SOC_DASHBOARD_USERNAME", "admin")
 AUTH_PASSWORD = os.getenv("SOC_DASHBOARD_PASSWORD", "admin123")
 AUTH_SECRET = os.getenv("SOC_DASHBOARD_SECRET", "soc-dev-secret")
+APP_VERSION = os.getenv("SOC_DASHBOARD_VERSION", "1.3.0")
 INGEST_API_KEY = os.getenv("SOC_INGEST_API_KEY", "")
 SESSION_COOKIE = "soc_session"
 SESSION_TOKEN = hashlib.sha256(f"{AUTH_USER}:{AUTH_PASSWORD}:{AUTH_SECRET}".encode()).hexdigest()
@@ -238,7 +239,7 @@ def wallboard(request: Request):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": APP_VERSION}
 
 
 @app.post("/api/logs/ingest")
@@ -1373,6 +1374,50 @@ def risk_entities(since_hours: int = Query(default=24, ge=1, le=24 * 30)):
     }
 
 
+@app.get("/api/analytics/overview")
+def analytics_overview(window_hours: int = Query(default=24, ge=1, le=24 * 30)):
+    since = (datetime.now(timezone.utc) - timedelta(hours=window_hours)).isoformat()
+    rows = fetch_all(
+        """
+        SELECT severity, alert_type, COALESCE(ip, 'unknown') AS ip, mitre_tactic, mitre_technique
+        FROM alerts
+        WHERE ts >= ?
+        """,
+        (since,),
+    )
+    severity_counter = Counter()
+    alert_type_counter = Counter()
+    ip_counter = Counter()
+    mitre_counter = Counter()
+    for row in rows:
+        severity = str(row.get("severity") or "unknown").lower()
+        alert_type = str(row.get("alert_type") or "unknown")
+        ip = str(row.get("ip") or "unknown")
+        mitre_tactic = str(row.get("mitre_tactic") or "").strip()
+        mitre_technique = str(row.get("mitre_technique") or "").strip()
+        severity_counter[severity] += 1
+        alert_type_counter[alert_type] += 1
+        ip_counter[ip] += 1
+        if mitre_tactic or mitre_technique:
+            mitre_counter[f"{mitre_tactic}::{mitre_technique}"] += 1
+
+    return {
+        "window_hours": window_hours,
+        "alert_count": len(rows),
+        "severity_distribution": dict(sorted(severity_counter.items())),
+        "top_alert_types": [{"alert_type": name, "count": count} for name, count in alert_type_counter.most_common(8)],
+        "top_source_ips": [{"ip": ip, "count": count} for ip, count in ip_counter.most_common(8)],
+        "mitre_coverage": [
+            {
+                "mitre_tactic": key.split("::", 1)[0],
+                "mitre_technique": key.split("::", 1)[1],
+                "count": count,
+            }
+            for key, count in mitre_counter.most_common(8)
+        ],
+    }
+
+
 @app.get("/api/playbook/{alert_type}")
 def playbook(alert_type: str):
     return {"alert_type": alert_type, "steps": get_playbook(alert_type)}
@@ -1381,6 +1426,7 @@ def playbook(alert_type: str):
 @app.get("/api/settings")
 def settings():
     return {
+        "app_version": APP_VERSION,
         "webhook_enabled": bool(os.getenv("SOC_WEBHOOK_URL", "").strip()),
         "webhook_min_severity": os.getenv("SOC_WEBHOOK_MIN_SEVERITY", "high"),
         "ingest_api_key_enabled": bool(INGEST_API_KEY),

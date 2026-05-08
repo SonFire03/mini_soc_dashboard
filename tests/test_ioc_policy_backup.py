@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 from app.database import execute, init_db
 from app.main import (
@@ -65,16 +66,19 @@ def test_policy_auto_creates_case() -> None:
 
 
 def test_delta_and_backup_restore_cycle() -> None:
+    now = datetime.now(timezone.utc)
+    ts1 = (now - timedelta(minutes=2)).isoformat().replace("+00:00", "Z")
+    ts2 = (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
     _store_logs(
         [
-            '{"ts":"2026-04-22T10:04:00Z","ip":"203.0.113.21","method":"POST","path":"/login","status_code":401,"user_agent":"Mozilla/5.0","message":"failed"}'
+            f'{{"ts":"{ts1}","ip":"203.0.113.21","method":"POST","path":"/login","status_code":401,"user_agent":"Mozilla/5.0","message":"failed"}}'
         ]
     )
     backup = create_backup()
     assert backup["status"] == "ok"
     _store_logs(
         [
-            '{"ts":"2026-04-22T10:05:00Z","ip":"203.0.113.21","method":"POST","path":"/login","status_code":401,"user_agent":"Mozilla/5.0","message":"failed-again"}'
+            f'{{"ts":"{ts2}","ip":"203.0.113.21","method":"POST","path":"/login","status_code":401,"user_agent":"Mozilla/5.0","message":"failed-again"}}'
         ]
     )
 
