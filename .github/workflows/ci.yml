@@ -21,4 +21,4 @@ jobs:
       - name: Mypy
         run: mypy app
       - name: Pytest
-        run: pytest -q
+        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=65

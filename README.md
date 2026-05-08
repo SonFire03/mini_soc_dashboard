@@ -1,5 +1,8 @@
 # Mini SOC Dashboard
 
+[![Release](https://img.shields.io/github/v/release/SonFire03/mini_soc_dashboard)](https://github.com/SonFire03/mini_soc_dashboard/releases)
+[![CI](https://github.com/SonFire03/mini_soc_dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/SonFire03/mini_soc_dashboard/actions/workflows/ci.yml)
+
 FR/EN documentation for a lightweight SOC dashboard built with FastAPI and SQLite.
 
 Current release: **v1.3.0** (2026-05-08). See [CHANGELOG.md](CHANGELOG.md).
@@ -66,6 +69,7 @@ Le projet est adapté à la démonstration SOC, aux labs de détection, et comme
 ![Dashboard](assets/screenshots/dashboard.png)
 ![Alerts](assets/screenshots/alerts.png)
 ![Reports](assets/screenshots/reports.png)
+![Analytics](assets/screenshots/analytics.png)
 
 ### Architecture
 - **Backend**: FastAPI
@@ -252,11 +256,16 @@ make lint
 make typecheck
 ```
 
+Quality gates:
+- `ruff check .`
+- `mypy app`
+- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=65`
+
 CI GitHub Actions (`.github/workflows/ci.yml`) :
 1. install deps,
 2. `ruff check .`,
 3. `mypy app`,
-4. `pytest -q`.
+4. `pytest -q --cov=app --cov-fail-under=65`.
 
 ### Troubleshooting
 - `ModuleNotFoundError`: installer `requirements.txt` dans le venv.
@@ -302,6 +311,7 @@ It is designed for local SOC demos, detection labs, and as a practical baseline 
 ![Dashboard](assets/screenshots/dashboard.png)
 ![Alerts](assets/screenshots/alerts.png)
 ![Reports](assets/screenshots/reports.png)
+![Analytics](assets/screenshots/analytics.png)
 
 ### Tech stack
 - Backend: FastAPI
@@ -378,7 +388,12 @@ make lint
 make typecheck
 ```
 
-CI pipeline runs `ruff`, `mypy`, and `pytest` on push/PR.
+Quality gates:
+- `ruff check .`
+- `mypy app`
+- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=65`
+
+CI pipeline enforces `ruff`, `mypy`, and `pytest` with minimum `65%` coverage on push/PR.
 
 ### Troubleshooting
 - Missing dependencies: reinstall `requirements.txt` in your venv.
