@@ -203,7 +203,7 @@ class AuthMiddleware:
 
         if _is_authenticated(request):
             if path.startswith("/api/") and _current_role(request) == "analyst":
-                admin_only_prefixes = ("/api/admin/", "/api/policies")
+                admin_only_prefixes = ("/api/admin/", "/api/policies", "/api/reports/schedules")
                 if path.startswith(admin_only_prefixes):
                     forbidden_response = JSONResponse({"detail": "Forbidden for current role"}, status_code=403)
                     await forbidden_response(scope, receive, send)
