@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 from app.database import init_db
 from app.main import (
@@ -33,10 +34,13 @@ def test_correlation_engine_creates_chain_alert() -> None:
 
 
 def test_risk_entities_exposes_top_scores() -> None:
+    now = datetime.now(timezone.utc)
+    ts1 = (now - timedelta(minutes=2)).isoformat().replace("+00:00", "Z")
+    ts2 = (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
     _store_logs(
         [
-            '{"ts":"2026-04-22T11:10:00Z","ip":"203.0.113.50","method":"GET","path":"/search?q=union+select","status_code":200,"user_agent":"sqlmap/1.7","message":"probe"}',
-            '{"ts":"2026-04-22T11:11:00Z","ip":"203.0.113.50","method":"POST","path":"/login","status_code":401,"user_agent":"Mozilla/5.0","message":"failed"}',
+            f'{{"ts":"{ts1}","ip":"203.0.113.50","method":"GET","path":"/search?q=union+select","status_code":200,"user_agent":"sqlmap/1.7","message":"probe"}}',
+            f'{{"ts":"{ts2}","ip":"203.0.113.50","method":"POST","path":"/login","status_code":401,"user_agent":"Mozilla/5.0","message":"failed"}}',
         ]
     )
     risk = risk_entities(since_hours=48)
