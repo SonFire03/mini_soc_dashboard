@@ -82,6 +82,25 @@ def test_analyst_forbidden_on_admin_path() -> None:
     assert any(event.get("status") == 403 for event in sent if event.get("type") == "http.response.start")
 
 
+def test_analyst_forbidden_on_report_schedule_path() -> None:
+    called = {"next": False}
+    sent: list[dict] = []
+
+    async def send(event: dict) -> None:
+        sent.append(event)
+
+    async def next_app(scope, receive, send):
+        called["next"] = True
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    middleware = AuthMiddleware(next_app)
+    cookie = _cookie_header((SESSION_COOKIE, SESSION_TOKEN), (SESSION_ROLE_COOKIE, "analyst"))
+    asyncio.run(middleware(_scope("/api/reports/schedules", cookie), _receive, send))
+    assert called["next"] is False
+    assert any(event.get("status") == 403 for event in sent if event.get("type") == "http.response.start")
+
+
 def test_admin_allowed_on_admin_path() -> None:
     called = {"next": False}
     sent: list[dict] = []
