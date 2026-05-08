@@ -5,7 +5,13 @@
 
 FR/EN documentation for a lightweight SOC dashboard built with FastAPI and SQLite.
 
-Current release: **v1.3.0** (2026-05-08). See [CHANGELOG.md](CHANGELOG.md).
+Current release: **v1.3.1** (2026-05-08). See [CHANGELOG.md](CHANGELOG.md).
+
+### What Changed Since v1.3.0
+- Lifecycle migration from deprecated FastAPI `on_event` to `lifespan`.
+- CI quality gate stabilized (`ruff` + `mypy` + `pytest` with coverage threshold).
+- RBAC baseline introduced (`admin` vs `analyst`) for sensitive API routes.
+- OpenAPI examples added for ingest, alerts filtering, and case creation endpoints.
 
 ---
 
@@ -259,13 +265,13 @@ make typecheck
 Quality gates:
 - `ruff check .`
 - `mypy app`
-- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=64`
+- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=66`
 
 CI GitHub Actions (`.github/workflows/ci.yml`) :
 1. install deps,
 2. `ruff check .`,
 3. `mypy app`,
-4. `pytest -q --cov=app --cov-fail-under=64`.
+4. `pytest -q --cov=app --cov-fail-under=66`.
 
 ### Troubleshooting
 - `ModuleNotFoundError`: installer `requirements.txt` dans le venv.
@@ -391,9 +397,9 @@ make typecheck
 Quality gates:
 - `ruff check .`
 - `mypy app`
-- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=64`
+- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=66`
 
-CI pipeline enforces `ruff`, `mypy`, and `pytest` with minimum `64%` coverage on push/PR.
+CI pipeline enforces `ruff`, `mypy`, and `pytest` with minimum `66%` coverage on push/PR.
 
 ### Troubleshooting
 - Missing dependencies: reinstall `requirements.txt` in your venv.

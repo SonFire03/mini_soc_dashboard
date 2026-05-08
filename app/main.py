@@ -62,6 +62,7 @@ AUTH_SECRET = os.getenv("SOC_DASHBOARD_SECRET", "soc-dev-secret")
 APP_VERSION = os.getenv("SOC_DASHBOARD_VERSION", "1.3.0")
 INGEST_API_KEY = os.getenv("SOC_INGEST_API_KEY", "")
 SESSION_COOKIE = "soc_session"
+SESSION_ROLE_COOKIE = "soc_role"
 SESSION_TOKEN = hashlib.sha256(f"{AUTH_USER}:{AUTH_PASSWORD}:{AUTH_SECRET}".encode()).hexdigest()
 REPORTS_DIR = Path("data/reports")
 BACKUPS_DIR = Path("data/backups")
@@ -122,6 +123,11 @@ templates = Jinja2Templates(directory="app/templates")
 
 def _is_authenticated(request: Request) -> bool:
     return request.cookies.get(SESSION_COOKIE) == SESSION_TOKEN
+
+
+def _current_role(request: Request) -> str:
+    role = str(request.cookies.get(SESSION_ROLE_COOKIE) or "admin").strip().lower()
+    return role if role in {"admin", "analyst"} else "admin"
 
 
 def _ingest_key_valid(request: Request) -> bool:
@@ -196,6 +202,12 @@ class AuthMiddleware:
             return
 
         if _is_authenticated(request):
+            if path.startswith("/api/") and _current_role(request) == "analyst":
+                admin_only_prefixes = ("/api/admin/", "/api/policies")
+                if path.startswith(admin_only_prefixes):
+                    forbidden_response = JSONResponse({"detail": "Forbidden for current role"}, status_code=403)
+                    await forbidden_response(scope, receive, send)
+                    return
             await self.app(scope, receive, send)
             return
 
@@ -229,6 +241,7 @@ async def login(request: Request):
 
     response = RedirectResponse("/", status_code=303)
     response.set_cookie(SESSION_COOKIE, SESSION_TOKEN, httponly=True, samesite="strict")
+    response.set_cookie(SESSION_ROLE_COOKIE, os.getenv("SOC_DASHBOARD_ROLE", "admin"), httponly=True, samesite="strict")
     return response
 
 
@@ -282,7 +295,30 @@ async def ingest_logs(
     return result
 
 
-@app.post("/api/logs/ingest-json")
+@app.post(
+    "/api/logs/ingest-json",
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "example": {
+                        "lines": [
+                            {
+                                "ts": "2026-05-08T10:15:00Z",
+                                "ip": "203.0.113.10",
+                                "method": "POST",
+                                "path": "/login",
+                                "status_code": 401,
+                                "user_agent": "Mozilla/5.0",
+                                "message": "failed login",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    },
+)
 def ingest_json(request: Request, payload: dict[str, list[str | dict[str, Any]]]):
     _inc_metric("ingest_requests_total")
     if _ingest_rate_limited(request):
@@ -294,7 +330,7 @@ def ingest_json(request: Request, payload: dict[str, list[str | dict[str, Any]]]
     if error:
         return error
     assert parsed is not None
-    lines = parsed.lines if parsed else []
+    lines = parsed.lines
     result = _store_logs(lines)
     _inc_metric("ingest_lines_total", int(result.get("ingested", 0)))
     _inc_metric("ingest_alerts_total", int(result.get("inserted_alerts", 0)))
@@ -1120,7 +1156,19 @@ def get_logs(
     )
 
 
-@app.get("/api/alerts")
+@app.get(
+    "/api/alerts",
+    openapi_extra={
+        "parameters": [
+            {
+                "name": "dsl",
+                "in": "query",
+                "schema": {"type": "string"},
+                "example": "ip:203.0.113.10 code:401 method:POST",
+            }
+        ]
+    },
+)
 def get_alerts(
     limit: int = 200,
     offset: int = 0,
@@ -1511,7 +1559,24 @@ def get_cases(limit: int = 200, offset: int = 0):
     return {"items": rows, "total": total, "limit": limit, "offset": offset}
 
 
-@app.post("/api/cases")
+@app.post(
+    "/api/cases",
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "example": {
+                        "title": "Investigate repeated login failures",
+                        "priority": "high",
+                        "status": "open",
+                        "owner": "soc-analyst",
+                        "description": "Multiple suspicious auth failures from same source.",
+                    }
+                }
+            }
+        }
+    },
+)
 def create_case(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, CaseCreatePayload)
     if error:
