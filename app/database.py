@@ -223,7 +223,7 @@ def execute(query: str, params: tuple[Any, ...] = ()) -> int:
     with get_conn() as conn:
         cur = conn.execute(query, params)
         conn.commit()
-        return cur.lastrowid
+        return int(cur.lastrowid or 0)
 
 
 def execute_change(query: str, params: tuple[Any, ...] = ()) -> int:

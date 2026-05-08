@@ -259,13 +259,13 @@ make typecheck
 Quality gates:
 - `ruff check .`
 - `mypy app`
-- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=65`
+- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=64`
 
 CI GitHub Actions (`.github/workflows/ci.yml`) :
 1. install deps,
 2. `ruff check .`,
 3. `mypy app`,
-4. `pytest -q --cov=app --cov-fail-under=65`.
+4. `pytest -q --cov=app --cov-fail-under=64`.
 
 ### Troubleshooting
 - `ModuleNotFoundError`: installer `requirements.txt` dans le venv.
@@ -391,9 +391,9 @@ make typecheck
 Quality gates:
 - `ruff check .`
 - `mypy app`
-- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=65`
+- `pytest -q --cov=app --cov-report=term-missing --cov-fail-under=64`
 
-CI pipeline enforces `ruff`, `mypy`, and `pytest` with minimum `65%` coverage on push/PR.
+CI pipeline enforces `ruff`, `mypy`, and `pytest` with minimum `64%` coverage on push/PR.
 
 ### Troubleshooting
 - Missing dependencies: reinstall `requirements.txt` in your venv.

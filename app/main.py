@@ -13,6 +13,7 @@ import shutil
 import threading
 import time
 from collections import Counter
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -79,7 +80,7 @@ _event_seq = 0
 _scheduler_thread: threading.Thread | None = None
 _scheduler_stop = threading.Event()
 _last_housekeeping_epoch = 0.0
-_metrics = Counter()
+_metrics: Counter[str] = Counter()
 _ingest_hits: dict[str, list[float]] = {}
 _ingest_lock = threading.Lock()
 logger = logging.getLogger("soc_dashboard")
@@ -198,6 +199,7 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
 
+        response: Response
         if path.startswith("/api/"):
             response = JSONResponse({"detail": "Unauthorized"}, status_code=401)
         else:
@@ -291,6 +293,7 @@ def ingest_json(request: Request, payload: dict[str, list[str | dict[str, Any]]]
     parsed, error = _validate_payload(payload, IngestJsonPayload)
     if error:
         return error
+    assert parsed is not None
     lines = parsed.lines if parsed else []
     result = _store_logs(lines)
     _inc_metric("ingest_lines_total", int(result.get("ingested", 0)))
@@ -298,7 +301,7 @@ def ingest_json(request: Request, payload: dict[str, list[str | dict[str, Any]]]
     return result
 
 
-def _store_logs(lines: list[str | dict[str, Any]]) -> dict[str, int]:
+def _store_logs(lines: Sequence[str | dict[str, Any]]) -> dict[str, int]:
     normalized_logs: list[dict[str, Any]] = []
     inserted_alerts = 0
     _cleanup_expired_suppressions()
@@ -1251,7 +1254,7 @@ def get_stats():
         """
     )
 
-    risk_counter = Counter()
+    risk_counter: Counter[str] = Counter()
     risk_rows = fetch_all("SELECT COALESCE(ip, 'unknown') AS ip, alert_type, severity FROM alerts")
     for row in risk_rows:
         risk_counter[str(row.get("ip") or "unknown")] += _risk_weight(
@@ -1346,19 +1349,19 @@ def risk_entities(since_hours: int = Query(default=24, ge=1, le=24 * 30)):
     assets = fetch_all("SELECT id, name FROM assets")
     asset_by_id = {int(a["id"]): str(a.get("name") or f"asset-{a['id']}") for a in assets}
 
-    current_ip = Counter()
-    current_user = Counter()
-    current_asset = Counter()
-    previous_ip = Counter()
-    previous_user = Counter()
-    previous_asset = Counter()
+    current_ip: Counter[str] = Counter()
+    current_user: Counter[str] = Counter()
+    current_asset: Counter[str] = Counter()
+    previous_ip: Counter[str] = Counter()
+    previous_user: Counter[str] = Counter()
+    previous_asset: Counter[str] = Counter()
 
     for row in rows:
         ts = str(row.get("ts") or "")
         weight = _risk_weight(str(row.get("alert_type") or ""), str(row.get("severity") or ""))
         ip = str(row.get("ip") or "unknown")
         user = str(row.get("username") or "unknown")
-        asset_name = asset_by_id.get(int(row["asset_id"])) if row.get("asset_id") else "unmapped"
+        asset_name = asset_by_id.get(int(row["asset_id"]), "unmapped") if row.get("asset_id") else "unmapped"
         if ts >= since:
             current_ip[ip] += weight
             current_user[user] += weight
@@ -1395,10 +1398,10 @@ def analytics_overview(window_hours: int = Query(default=24, ge=1, le=24 * 30)):
         """,
         (since,),
     )
-    severity_counter = Counter()
-    alert_type_counter = Counter()
-    ip_counter = Counter()
-    mitre_counter = Counter()
+    severity_counter: Counter[str] = Counter()
+    alert_type_counter: Counter[str] = Counter()
+    ip_counter: Counter[str] = Counter()
+    mitre_counter: Counter[str] = Counter()
     for row in rows:
         severity = str(row.get("severity") or "unknown").lower()
         alert_type = str(row.get("alert_type") or "unknown")
@@ -1513,6 +1516,7 @@ def create_case(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, CaseCreatePayload)
     if error:
         return error
+    assert parsed is not None
     title = str(parsed.title).strip()
     priority = str(parsed.priority).strip().lower()
     status = str(parsed.status).strip().lower()
@@ -1550,6 +1554,7 @@ def update_case(case_id: int, payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, CaseUpdatePayload)
     if error:
         return error
+    assert parsed is not None
     rows = fetch_all("SELECT id, status, owner FROM cases WHERE id = ?", (case_id,))
     if not rows:
         return JSONResponse({"detail": "Case not found"}, status_code=404)
@@ -1723,6 +1728,7 @@ def create_case_comment(case_id: int, payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, CaseCommentCreatePayload)
     if error:
         return error
+    assert parsed is not None
     case_exists = fetch_all("SELECT id FROM cases WHERE id = ?", (case_id,))
     if not case_exists:
         return JSONResponse({"detail": "Case not found"}, status_code=404)
@@ -1820,6 +1826,7 @@ def create_saved_view(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, SavedViewCreatePayload)
     if error:
         return error
+    assert parsed is not None
     name = str(parsed.name).strip()
     target = str(parsed.target).strip().lower()
     query_dsl = str(parsed.query_dsl).strip()
@@ -1949,6 +1956,7 @@ def create_report_schedule(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, ReportScheduleCreatePayload)
     if error:
         return error
+    assert parsed is not None
     name = str(parsed.name or "").strip() or f"schedule-{int(time.time())}"
     hour_utc = int(parsed.hour_utc)
     minute_utc = int(parsed.minute_utc)
@@ -1977,6 +1985,7 @@ def update_report_schedule(schedule_id: int, payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, ReportScheduleUpdatePayload)
     if error:
         return error
+    assert parsed is not None
     rows = fetch_all("SELECT id FROM report_schedules WHERE id = ?", (schedule_id,))
     if not rows:
         return JSONResponse({"detail": "schedule not found"}, status_code=404)
@@ -2104,6 +2113,7 @@ def create_ioc(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, IocCreatePayload)
     if error:
         return error
+    assert parsed is not None
     ioc_type = str(parsed.ioc_type).strip().lower()
     ioc_value = str(parsed.ioc_value).strip()
     severity = str(parsed.severity_override).strip().lower()
@@ -2127,6 +2137,7 @@ def update_ioc(ioc_id: int, payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, IocUpdatePayload)
     if error:
         return error
+    assert parsed is not None
     rows = fetch_all("SELECT id FROM ioc_watchlist WHERE id = ?", (ioc_id,))
     if not rows:
         return JSONResponse({"detail": "IOC not found"}, status_code=404)
@@ -2188,6 +2199,7 @@ def create_policy(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, PolicyCreatePayload)
     if error:
         return error
+    assert parsed is not None
     name = str(parsed.name).strip()
     condition_expr = str(parsed.condition_expr).strip()
     action_type = str(parsed.action_type).strip()
@@ -2218,6 +2230,7 @@ def update_policy(policy_id: int, payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, PolicyUpdatePayload)
     if error:
         return error
+    assert parsed is not None
     rows = fetch_all("SELECT id FROM policies WHERE id = ?", (policy_id,))
     if not rows:
         return JSONResponse({"detail": "Policy not found"}, status_code=404)
@@ -2281,6 +2294,7 @@ def create_asset(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, AssetCreatePayload)
     if error:
         return error
+    assert parsed is not None
     name = str(parsed.name).strip()
     criticality = str(parsed.criticality).strip().lower()
     ip_cidr = str(parsed.ip_cidr or "").strip() or None
@@ -2341,6 +2355,7 @@ def create_suppression(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, SuppressionCreatePayload)
     if error:
         return error
+    assert parsed is not None
     ip = str(parsed.ip or "").strip() or None
     alert_type = str(parsed.alert_type or "").strip() or None
     path_pattern = str(parsed.path_pattern or "").strip() or None
@@ -2452,6 +2467,7 @@ def restore_backup(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, RestoreBackupPayload)
     if error:
         return error
+    assert parsed is not None
     requested = str(parsed.backup_name or "").strip()
     if not requested:
         rows = fetch_all(
@@ -2557,6 +2573,7 @@ def start_live_tail(payload: dict[str, Any]):
     parsed, error = _validate_payload(payload, LiveTailStartPayload)
     if error:
         return error
+    assert parsed is not None
     file_path = str(parsed.file_path).strip()
     from_start = bool(parsed.from_start)
     interval_sec = float(parsed.interval_sec)
