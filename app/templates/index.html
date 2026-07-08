@@ -9,7 +9,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
-<body class="{% if wallboard %}wallboard{% endif %}">
+<body class="{% if wallboard %}wallboard {% endif %}page-{{ page or 'overview' }}">
+  {% set current_page = page or 'overview' %}
   <div class="bg-mesh"></div>
   <div class="bg-orb bg-orb-a" aria-hidden="true"></div>
   <div class="bg-orb bg-orb-b" aria-hidden="true"></div>
@@ -24,15 +25,26 @@
       </div>
       <div class="hero-actions">
         <span class="live-dot">ONLINE</span>
+        <div class="lang-picker">
+          <span class="lang-label" data-language-label>Language</span>
+          <select id="languageSelect" data-language-select aria-label="Language"></select>
+        </div>
         <a class="button-link" href="/wallboard">Wallboard</a>
         <form method="post" action="/logout">
           <button type="submit" class="secondary">Logout</button>
         </form>
       </div>
     </div>
+    <nav class="page-tabs" aria-label="Primary">
+      <a class="page-tab {% if current_page == 'overview' %}active{% endif %}" href="/overview">Overview</a>
+      <a class="page-tab {% if current_page == 'investigations' %}active{% endif %}" href="/investigations">Investigations</a>
+      <a class="page-tab {% if current_page == 'operations' %}active{% endif %}" href="/operations">Operations</a>
+      <a class="page-tab {% if current_page == 'reports' %}active{% endif %}" href="/reports">Reports</a>
+      <a class="page-tab {% if current_page == 'admin' %}active{% endif %}" href="/admin">Admin</a>
+    </nav>
   </header>
 
-  <section class="quick-strip reveal">
+  <section class="quick-strip reveal section-overview section-investigations">
     <article class="quick-item"><p>Open Alerts</p><h3 id="quickOpenAlerts">0</h3></article>
     <article class="quick-item"><p>High Severity</p><h3 id="quickHighAlerts">0</h3></article>
     <article class="quick-item"><p>Compromise Flags</p><h3 id="quickCompromise">0</h3></article>
@@ -40,22 +52,39 @@
   </section>
 
   <main class="layout">
-    <aside class="panel panel-left reveal">
-      <section class="card card-tight side-nav-card">
-        <h2>Ops Navigation</h2>
+    <aside class="panel panel-left reveal section-investigations section-operations section-reports section-admin">
+      <section class="card card-tight side-nav-card section-investigations section-operations section-reports section-admin">
+        <h2>{% if current_page == 'investigations' %}Investigations{% elif current_page == 'operations' %}Operations{% elif current_page == 'reports' %}Reports{% else %}Admin{% endif %} Navigation</h2>
         <nav class="side-nav">
+          {% if current_page == 'investigations' %}
+          <a class="section-nav-link" href="#sec-live-tail">Live Tail</a>
+          <a class="section-nav-link" href="#sec-control">Control Center</a>
+          <a class="section-nav-link" href="#sec-workspace">Workspace</a>
+          <a class="section-nav-link" href="#sec-hunt">Hunt Filters</a>
+          <a class="section-nav-link" href="#sec-incidents">Incident Timeline</a>
+          {% elif current_page == 'operations' %}
           <a class="section-nav-link" href="#sec-ingestion">Ingestion</a>
           <a class="section-nav-link" href="#sec-live-tail">Live Tail</a>
           <a class="section-nav-link" href="#sec-assets">Assets</a>
           <a class="section-nav-link" href="#sec-suppressions">Suppressions</a>
           <a class="section-nav-link" href="#sec-iocs">IOC Watchlist</a>
           <a class="section-nav-link" href="#sec-policies">Policy Engine</a>
-          <a class="section-nav-link" href="#sec-backups">Backup & Restore</a>
+          <a class="section-nav-link" href="#sec-cases">Cases</a>
           <a class="section-nav-link" href="#sec-case-comments">Case Comments</a>
+          {% elif current_page == 'reports' %}
+          <a class="section-nav-link" href="#sec-control">Control Center</a>
+          <a class="section-nav-link" href="#sec-schedules">Scheduled Reports</a>
+          <a class="section-nav-link" href="#sec-delta">Delta Report</a>
+          {% else %}
+          <a class="section-nav-link" href="#sec-control">Control Center</a>
+          <a class="section-nav-link" href="#sec-ingestion">Ingestion</a>
+          <a class="section-nav-link" href="#sec-backups">Backup & Restore</a>
+          {% endif %}
         </nav>
       </section>
 
-      <section class="card card-tight" id="sec-ingestion">
+      {% if current_page != 'operations' %}
+      <section class="card card-tight section-operations section-admin" id="sec-ingestion">
         <h2>Ingestion</h2>
         <form id="ingestForm" class="stack">
           <input type="file" id="logFile" accept=".log,.txt,.json" required />
@@ -69,7 +98,7 @@
         </div>
       </section>
 
-      <section class="card card-tight" id="sec-live-tail">
+      <section class="card card-tight section-investigations section-operations" id="sec-live-tail">
         <h2>Live Tail</h2>
         <div class="stack">
           <input id="tailPath" placeholder="Chemin log (ex: data/sample.log)" value="data/sample.log" />
@@ -82,7 +111,7 @@
         <p id="tailStatus" class="status-line"></p>
       </section>
 
-      <section class="card card-tight" id="sec-assets">
+      <section class="card card-tight section-operations" id="sec-assets">
         <h2>Assets</h2>
         <div class="stack">
           <input id="assetName" placeholder="Asset name" />
@@ -100,7 +129,7 @@
         <ul id="assetsList" class="playbook-list"></ul>
       </section>
 
-      <section class="card card-tight" id="sec-suppressions">
+      <section class="card card-tight section-operations" id="sec-suppressions">
         <h2>Suppressions</h2>
         <div class="stack">
           <input id="supIp" placeholder="IP (optionnel)" />
@@ -113,7 +142,7 @@
         <ul id="suppressionsList" class="playbook-list"></ul>
       </section>
 
-      <section class="card card-tight" id="sec-iocs">
+      <section class="card card-tight section-operations" id="sec-iocs">
         <h2>IOC Watchlist</h2>
         <div class="stack">
           <select id="iocType">
@@ -134,7 +163,7 @@
         <ul id="iocsList" class="playbook-list"></ul>
       </section>
 
-      <section class="card card-tight" id="sec-policies">
+      <section class="card card-tight section-operations" id="sec-policies">
         <h2>Policy Engine</h2>
         <div class="stack">
           <input id="policyName" placeholder="Policy name" />
@@ -149,8 +178,9 @@
         </div>
         <ul id="policiesList" class="playbook-list"></ul>
       </section>
+      {% endif %}
 
-      <section class="card card-tight" id="sec-backups">
+      <section class="card card-tight section-admin" id="sec-backups">
         <h2>Backup & Restore</h2>
         <div class="row-actions">
           <button id="createBackup" type="button">Create Backup</button>
@@ -161,7 +191,7 @@
     </aside>
 
     <section class="panel panel-main">
-      <section class="card reveal control-bar" id="sec-control">
+      <section class="card reveal control-bar section-overview section-investigations section-operations section-reports section-admin" id="sec-control">
         <div class="control-left">
           <h2>Control Center</h2>
           <p class="status-line">Raccourcis: <code>Ctrl+K</code> palette, <code>/</code> search, <code>r</code> refresh, <code>t</code> tail.</p>
@@ -179,13 +209,152 @@
             <option value="30000">30s</option>
           </select>
           <button id="refreshNow" type="button">Refresh Now</button>
-          <a class="button-link" href="/reports/daily" target="_blank" rel="noreferrer">Daily Report</a>
+          <a class="button-link" href="/reports/daily" data-report-link="/reports/daily" target="_blank" rel="noreferrer">Daily Report</a>
           <span id="wsStatus" class="status-line">ws: connecting...</span>
           <span id="lastRefreshAt" class="status-line">last sync: -</span>
         </div>
       </section>
 
-      <section class="card reveal" id="sec-hunt">
+      {% if current_page == 'operations' %}
+      <section class="card wide reveal section-operations" id="sec-ops-tools">
+        <div class="card-head">
+          <h2>Operations Toolkit</h2>
+        </div>
+        <div class="ops-tools-grid">
+          <section class="ops-tool-card" id="sec-ingestion">
+            <h3>Ingestion</h3>
+            <form id="ingestForm" class="stack">
+              <input type="file" id="logFile" accept=".log,.txt,.json" required />
+              <button type="submit">Importer</button>
+            </form>
+            <p id="ingestResult" class="status-line"></p>
+            <div class="row-actions ingest-actions">
+              <button id="resetData" type="button" class="secondary">Reset Data</button>
+              <a class="button-link" href="/api/export/logs.csv" target="_blank" rel="noreferrer">Logs CSV</a>
+              <a class="button-link" href="/api/export/alerts.csv" target="_blank" rel="noreferrer">Alerts CSV</a>
+            </div>
+          </section>
+
+          <section class="ops-tool-card" id="sec-live-tail">
+            <h3>Live Tail</h3>
+            <div class="stack">
+              <input id="tailPath" placeholder="Chemin log (ex: data/sample.log)" value="data/sample.log" />
+              <label class="check"><input id="tailFromStart" type="checkbox" /> From start</label>
+              <div class="row-actions">
+                <button id="tailStart" type="button">Start</button>
+                <button id="tailStop" type="button" class="secondary">Stop</button>
+              </div>
+            </div>
+            <p id="tailStatus" class="status-line"></p>
+          </section>
+
+          <section class="ops-tool-card" id="sec-assets">
+            <h3>Assets</h3>
+            <div class="stack">
+              <input id="assetName" placeholder="Asset name" />
+              <select id="assetCriticality">
+                <option value="medium">medium</option>
+                <option value="low">low</option>
+                <option value="high">high</option>
+                <option value="critical">critical</option>
+              </select>
+              <input id="assetIpCidr" placeholder="IP/CIDR (ex 10.0.0.0/24)" />
+              <input id="assetPathPrefix" placeholder="Path prefix (ex /admin)" />
+              <input id="assetOwner" placeholder="Owner" />
+              <button id="addAsset" type="button">Add Asset</button>
+            </div>
+            <ul id="assetsList" class="playbook-list"></ul>
+          </section>
+
+          <section class="ops-tool-card" id="sec-suppressions">
+            <h3>Suppressions</h3>
+            <div class="stack">
+              <input id="supIp" placeholder="IP (optionnel)" />
+              <input id="supType" placeholder="Alert type (optionnel)" />
+              <input id="supPath" placeholder="Path pattern (optionnel)" />
+              <input id="supReason" placeholder="Reason" />
+              <input id="supTtl" type="number" min="1" value="60" placeholder="TTL min" />
+              <button id="addSuppression" type="button">Add Suppression</button>
+            </div>
+            <ul id="suppressionsList" class="playbook-list"></ul>
+          </section>
+
+          <section class="ops-tool-card" id="sec-iocs">
+            <h3>IOC Watchlist</h3>
+            <div class="stack">
+              <select id="iocType">
+                <option value="ip">ip</option>
+                <option value="path">path</option>
+                <option value="user_agent">user_agent</option>
+                <option value="text">text</option>
+              </select>
+              <input id="iocValue" placeholder="IOC value" />
+              <select id="iocSeverity">
+                <option value="high">high</option>
+                <option value="critical">critical</option>
+                <option value="medium">medium</option>
+                <option value="low">low</option>
+              </select>
+              <button id="addIoc" type="button">Add IOC</button>
+            </div>
+            <ul id="iocsList" class="playbook-list"></ul>
+          </section>
+
+          <section class="ops-tool-card" id="sec-policies">
+            <h3>Policy Engine</h3>
+            <div class="stack">
+              <input id="policyName" placeholder="Policy name" />
+              <input id="policyCondition" placeholder="Condition ex: severity==high AND alert_type==possible-bruteforce" />
+              <select id="policyAction">
+                <option value="create_case">create_case</option>
+                <option value="escalate_alert">escalate_alert</option>
+                <option value="notify_only">notify_only</option>
+              </select>
+              <input id="policyPayload" placeholder='Payload JSON ex: {"owner":"soc-auto","priority":"critical"}' />
+              <button id="addPolicy" type="button">Add Policy</button>
+            </div>
+            <ul id="policiesList" class="playbook-list"></ul>
+          </section>
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="card wide reveal workspace-card section-investigations" id="sec-workspace">
+        <div class="workspace-head">
+          <h2>Investigation Workspace</h2>
+          <p class="status-line">Drag separators to resize Alerts, Investigation, and Logs.</p>
+        </div>
+        <div class="workspace-grid" id="workspaceGrid">
+          <section class="workspace-panel" id="sec-alerts">
+            <h3>Alertes</h3>
+            <div class="table-wrap">
+              <table class="table-alerts">
+                <thead><tr><th>Time</th><th>Severity</th><th>Type</th><th>MITRE</th><th>Asset</th><th>IP</th><th>Occ.</th><th>Status</th><th>Assignee</th><th>Actions</th><th>Details</th></tr></thead>
+                <tbody id="alertsBody"></tbody>
+              </table>
+            </div>
+          </section>
+          <div class="workspace-resizer" id="resizerA" aria-hidden="true"></div>
+          <section class="workspace-panel" id="sec-drilldown">
+            <h3>Investigation</h3>
+            <div id="alertContextPanel" class="context-panel">
+              <p class="status-line">No alert selected.</p>
+            </div>
+          </section>
+          <div class="workspace-resizer" id="resizerB" aria-hidden="true"></div>
+          <section class="workspace-panel" id="sec-logs">
+            <h3>Logs</h3>
+            <div class="table-wrap">
+              <table class="table-logs">
+                <thead><tr><th>Time</th><th>IP</th><th>Method</th><th>Path</th><th>Status</th><th>UA</th></tr></thead>
+                <tbody id="logsBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="card reveal section-investigations" id="sec-hunt">
         <div class="card-head">
           <h2>Hunt Filters</h2>
           <button id="applyFilters" type="button">Apply</button>
@@ -236,23 +405,23 @@
         <ul id="savedViewsList" class="playbook-list"></ul>
       </section>
 
-      <section class="card metrics reveal" id="metrics"></section>
+      <section class="card metrics reveal section-overview" id="metrics"></section>
 
-      <section class="card reveal" id="sec-risk">
+      <section class="card reveal section-overview" id="sec-risk">
         <h2>Risk Radar</h2>
         <div id="riskPanel" class="context-panel">
           <p class="status-line">No risk data.</p>
         </div>
       </section>
 
-      <section class="card reveal" id="sec-sla">
+      <section class="card reveal section-overview" id="sec-sla">
         <h2>SLA</h2>
         <div id="slaPanel" class="context-panel">
           <p class="status-line">No SLA data.</p>
         </div>
       </section>
 
-      <section class="card reveal" id="sec-timeline">
+      <section class="card reveal section-overview" id="sec-timeline">
         <h2>Timeline (logs/heure)</h2>
         <div class="timeline-controls">
           <label class="check">Start <input id="timelineStart" type="range" min="0" max="100" value="0" /></label>
@@ -262,48 +431,7 @@
         <div id="timeline" class="timeline"></div>
       </section>
 
-      <section class="card wide reveal" id="sec-playbook">
-        <h2>Playbook</h2>
-        <p class="status-line">Clique "Playbook" sur une alerte pour afficher les actions recommandees.</p>
-        <ul id="playbookList" class="playbook-list"></ul>
-      </section>
-
-      <section class="card wide reveal workspace-card" id="sec-workspace">
-        <div class="workspace-head">
-          <h2>Investigation Workspace</h2>
-          <p class="status-line">Drag separators to resize Alerts, Drill-down, and Logs.</p>
-        </div>
-        <div class="workspace-grid" id="workspaceGrid">
-          <section class="workspace-panel" id="sec-alerts">
-            <h3>Alertes</h3>
-            <div class="table-wrap">
-              <table class="table-alerts">
-                <thead><tr><th>Time</th><th>Severity</th><th>Type</th><th>MITRE</th><th>Asset</th><th>IP</th><th>Occ.</th><th>Status</th><th>Assignee</th><th>Actions</th><th>Details</th></tr></thead>
-                <tbody id="alertsBody"></tbody>
-              </table>
-            </div>
-          </section>
-          <div class="workspace-resizer" id="resizerA" aria-hidden="true"></div>
-          <section class="workspace-panel" id="sec-drilldown">
-            <h3>Alert Drill-down</h3>
-            <div id="alertContextPanel" class="context-panel">
-              <p class="status-line">No alert selected.</p>
-            </div>
-          </section>
-          <div class="workspace-resizer" id="resizerB" aria-hidden="true"></div>
-          <section class="workspace-panel" id="sec-logs">
-            <h3>Logs</h3>
-            <div class="table-wrap">
-              <table class="table-logs">
-                <thead><tr><th>Time</th><th>IP</th><th>Method</th><th>Path</th><th>Status</th><th>UA</th></tr></thead>
-                <tbody id="logsBody"></tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-      </section>
-
-      <section class="card wide reveal" id="sec-incidents">
+      <section class="card wide reveal section-overview section-investigations" id="sec-incidents">
         <h2>Incident Timeline</h2>
         <div class="table-wrap">
           <table>
@@ -313,7 +441,7 @@
         </div>
       </section>
 
-      <section class="card wide reveal" id="sec-cases">
+      <section class="card wide reveal section-operations" id="sec-cases">
         <h2>Cases</h2>
         <div class="filters">
           <input id="caseTitle" placeholder="Case title" />
@@ -334,7 +462,7 @@
         </div>
       </section>
 
-      <section class="card wide reveal" id="sec-case-comments">
+      <section class="card wide reveal section-operations" id="sec-case-comments">
         <h2>Case Comments</h2>
         <div class="filters">
           <input id="commentCaseId" type="number" min="1" placeholder="Case ID" />
@@ -346,7 +474,7 @@
         <ul id="caseCommentsList" class="playbook-list"></ul>
       </section>
 
-      <section class="card wide reveal" id="sec-schedules">
+      <section class="card wide reveal section-reports" id="sec-schedules">
         <h2>Scheduled Reports</h2>
         <div class="filters">
           <input id="schedName" placeholder="Schedule name" />
@@ -362,7 +490,7 @@
         </div>
       </section>
 
-      <section class="card wide reveal" id="sec-delta">
+      <section class="card wide reveal section-reports" id="sec-delta">
         <div class="card-head">
           <h2>Delta Report</h2>
           <button id="refreshDeltaReport" type="button">Refresh Delta</button>
@@ -376,10 +504,19 @@
       </section>
     </section>
 
-    <aside class="panel panel-right reveal">
+    <aside class="panel panel-right reveal section-overview section-investigations">
       <section class="card card-tight side-nav-card">
-        <h2>Dashboard Navigation</h2>
+        <h2>{% if (page or 'overview') == 'investigations' %}Investigation{% else %}Dashboard{% endif %} Navigation</h2>
         <nav class="side-nav">
+          {% if (page or 'overview') == 'investigations' %}
+          <a class="section-nav-link" href="#sec-control">Control Center</a>
+          <a class="section-nav-link" href="#sec-workspace">Workspace</a>
+          <a class="section-nav-link" href="#sec-alerts">Alertes</a>
+          <a class="section-nav-link" href="#sec-drilldown">Investigation</a>
+          <a class="section-nav-link" href="#sec-logs">Logs</a>
+          <a class="section-nav-link" href="#sec-hunt">Hunt Filters</a>
+          <a class="section-nav-link" href="#sec-incidents">Incident Timeline</a>
+          {% else %}
           <a class="section-nav-link" href="#sec-control">Control Center</a>
           <a class="section-nav-link" href="#sec-hunt">Hunt Filters</a>
           <a class="section-nav-link" href="#sec-risk">Risk Radar</a>
@@ -392,6 +529,7 @@
           <a class="section-nav-link" href="#sec-case-comments">Case Comments</a>
           <a class="section-nav-link" href="#sec-schedules">Scheduled Reports</a>
           <a class="section-nav-link" href="#sec-delta">Delta Report</a>
+          {% endif %}
         </nav>
       </section>
 
@@ -401,7 +539,7 @@
         <p id="lastRefreshAtRight" class="status-line">last sync: -</p>
         <div class="row-actions">
           <button id="scrollTopButton" type="button" class="secondary">Top</button>
-          <a class="button-link" href="/reports/daily" target="_blank" rel="noreferrer">Daily Report</a>
+          <a class="button-link" href="/reports/daily" data-report-link="/reports/daily" target="_blank" rel="noreferrer">Daily Report</a>
         </div>
       </section>
     </aside>
@@ -420,6 +558,7 @@
     </div>
   </div>
 
+  <script src="/static/i18n.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

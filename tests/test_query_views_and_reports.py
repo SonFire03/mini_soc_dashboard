@@ -4,11 +4,16 @@ from app.database import execute, init_db
 from app.main import (
     _store_logs,
     alert_context,
+    alert_investigation,
+    create_asset,
+    create_case,
+    create_ioc,
     create_saved_view,
     daily_report_data,
     get_alerts,
     get_logs,
     get_saved_views,
+    link_case_alert,
 )
 
 DB_PATH = Path("data/soc.db")
@@ -65,3 +70,52 @@ def test_alert_context_and_report() -> None:
     report = daily_report_data()
     assert "stats" in report
     assert "latest_alerts" in report
+
+
+def test_alert_investigation_aggregates_asset_case_and_ioc_context() -> None:
+    create_asset(
+        {
+            "name": "Admin Portal",
+            "criticality": "critical",
+            "path_prefix": "/search",
+            "owner": "secops",
+        }
+    )
+    create_ioc(
+        {
+            "ioc_type": "user_agent",
+            "ioc_value": "sqlmap",
+            "severity_override": "critical",
+            "enabled": True,
+        }
+    )
+    _store_logs(
+        [
+            '{"ts":"2026-04-22T08:52:00Z","ip":"203.0.113.9","method":"GET","path":"/search?q=1 union select","status_code":200,"user_agent":"sqlmap/1.7","message":"query suspicious"}'
+        ]
+    )
+
+    alert = next(item for item in get_alerts(limit=200)["items"] if item["alert_type"] == "injection-or-traversal")
+    case = create_case({"title": "Investigate suspicious search", "priority": "high", "owner": "soc-analyst"})
+    link_case_alert(case["id"], alert["id"])
+    execute(
+        "INSERT INTO incident_events(ts, event_type, severity, alert_id, ip, title, details, actor) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "2026-04-22T08:53:00+00:00",
+            "manual_note",
+            "medium",
+            alert["id"],
+            "203.0.113.9",
+            "Analyst note",
+            "Pivoted to related logs",
+            "analyst",
+        ),
+    )
+
+    investigation = alert_investigation(alert["id"])
+    assert investigation["alert"]["id"] == alert["id"]
+    assert investigation["asset"]["name"] == "Admin Portal"
+    assert investigation["linked_cases"][0]["id"] == case["id"]
+    assert investigation["ioc_matches"][0]["ioc_value"] == "sqlmap"
+    assert investigation["summary"]["related_logs_count"] >= 1
+    assert investigation["summary"]["related_events_count"] >= 1

@@ -5,13 +5,14 @@
 
 FR/EN documentation for a lightweight SOC dashboard built with FastAPI and SQLite.
 
-Current release: **v1.4.0** (2026-07-08). See [CHANGELOG.md](CHANGELOG.md).
+Current release: **v1.5.0** (2026-07-09). See [CHANGELOG.md](CHANGELOG.md).
 
-### What Changed Since v1.3.1
-- Security posture metadata added to `GET /api/settings`.
-- Login/logout cookies now share hardened attributes and logout clears both session and role cookies.
-- Live tail is restricted to `data/` by default, configurable with `SOC_LIVE_TAIL_ROOT`.
-- Default demo credentials are consistent across code and documentation.
+### What Changed Since v1.4.0
+- Dashboard refactored into dedicated pages: `Overview`, `Investigations`, `Operations`, `Reports`, `Admin`.
+- Backend split into `runtime.py` plus route modules under `app/routes/`.
+- Investigation workspace now aggregates alert, asset, case, IOC, event, and log context from a single endpoint.
+- Multilingual UI added with language selector and flags: English, French, German, Spanish, Japanese, Mandarin Chinese, Hindi, Arabic, Russian.
+- Daily report page now accepts `?lang=` for localized rendering.
 
 ---
 
@@ -54,7 +55,7 @@ Le projet est adapté à la démonstration SOC, aux labs de détection, et comme
 
 #### Opérations SOC
 - Gestion d’alertes (statut, assignation, note, occurrences).
-- Contexte d’alerte (logs liés, événements incidents, playbook).
+- Contexte d’alerte unifié (`/api/alerts/{id}/investigation`) avec logs liés, événements incidents, cases, IOC et playbook.
 - Timeline incident.
 - Case management (cases, actions, commentaires, lien case↔alert).
 - Suppressions temporaires (TTL).
@@ -70,6 +71,12 @@ Le projet est adapté à la démonstration SOC, aux labs de détection, et comme
 
 #### Administration
 - Healthcheck, backup/restore SQLite, reset admin, wallboard.
+
+#### UX
+- Navigation multi-pages pour éviter une single page surchargée.
+- Sélecteur de langue avec drapeaux.
+- Support RTL pour l’arabe.
+- Boutons d’action et panneaux d’investigation retravaillés.
 
 ### Aperçu visuel
 ![Dashboard](assets/screenshots/dashboard.png)
@@ -88,7 +95,9 @@ Le projet est adapté à la démonstration SOC, aux labs de détection, et comme
 ### Structure du projet
 ```text
 app/
-  main.py            # Routes API + orchestration
+  main.py            # Assemblage FastAPI + re-exports
+  runtime.py         # Logique applicative principale
+  routes/            # Routers FastAPI par domaine
   parser.py          # Normalisation logs
   detector.py        # Registre de règles
   database.py        # Accès SQLite + schéma
@@ -130,8 +139,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Accès : `http://localhost:8000`
 
 Identifiants par défaut :
-- user: `Change_me`
-- password: `Change_me`
+- user: `admin`
+- password: `admin123`
 
 ### Lancement Docker
 ```bash
@@ -141,8 +150,8 @@ docker compose up --build
 ### Configuration (variables d’environnement)
 
 #### Auth
-- `SOC_DASHBOARD_USERNAME` (default `Change_me`)
-- `SOC_DASHBOARD_PASSWORD` (default `Change_me`)
+- `SOC_DASHBOARD_USERNAME` (default `admin`)
+- `SOC_DASHBOARD_PASSWORD` (default `admin123`)
 - `SOC_DASHBOARD_SECRET`
 - `SOC_COOKIE_SECURE` (`true|false`, active le flag `Secure` sur les cookies)
 - `SOC_DASHBOARD_PRODUCTION` (`true|false`, active aussi les cookies `Secure` si `SOC_COOKIE_SECURE` n'est pas défini)
@@ -196,7 +205,7 @@ Migration baseline incluse : `20260423_0001`.
 - `GET /api/alerts?...&limit=200&offset=0`
 - DSL: `dsl=ip:1.2.3.4 method:POST code:401`
 - `PATCH /api/alerts/{id}`
-- `GET /api/alerts/{id}/context`
+- `GET /api/alerts/{id}/investigation`
 - `GET /api/playbook/{alert_type}`
 
 #### Cases & incidents
@@ -216,7 +225,7 @@ Migration baseline incluse : `20260423_0001`.
 - `GET /api/stats`
 - `GET /api/risk/entities`
 - `GET /api/reports/daily`
-- `GET /reports/daily`
+- `GET /reports/daily?lang=fr`
 - `GET/POST/PATCH/DELETE /api/reports/schedules`
 - `POST /api/reports/schedules/{id}/run`
 - `GET /api/reports/runs`

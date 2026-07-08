@@ -9,6 +9,10 @@
 <body>
   <main class="login-wrap">
     <section class="card login-card">
+      <div class="lang-picker login-lang-picker">
+        <span class="lang-label" data-language-label>Language</span>
+        <select data-language-select aria-label="Language"></select>
+      </div>
       <h1>Mini SOC Dashboard</h1>
       <p>Authentication required.</p>
       <form method="post" action="/login" class="login-form">
@@ -22,5 +26,6 @@
       <p class="hint">Default: <code>admin / admin123</code> (change with env vars).</p>
     </section>
   </main>
+  <script src="/static/i18n.js"></script>
 </body>
 </html>
