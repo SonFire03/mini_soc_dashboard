@@ -56,16 +56,17 @@ from app.schemas import (
 )
 from app.tailer import LiveTailManager
 
-AUTH_USER = os.getenv("SOC_DASHBOARD_USERNAME", "admin")
-AUTH_PASSWORD = os.getenv("SOC_DASHBOARD_PASSWORD", "admin123")
+AUTH_USER = os.getenv("SOC_DASHBOARD_USERNAME", "Change_me")
+AUTH_PASSWORD = os.getenv("SOC_DASHBOARD_PASSWORD", "Change_me")
 AUTH_SECRET = os.getenv("SOC_DASHBOARD_SECRET", "soc-dev-secret")
-APP_VERSION = os.getenv("SOC_DASHBOARD_VERSION", "1.3.0")
+APP_VERSION = os.getenv("SOC_DASHBOARD_VERSION", "1.4.0")
 INGEST_API_KEY = os.getenv("SOC_INGEST_API_KEY", "")
 SESSION_COOKIE = "soc_session"
 SESSION_ROLE_COOKIE = "soc_role"
 SESSION_TOKEN = hashlib.sha256(f"{AUTH_USER}:{AUTH_PASSWORD}:{AUTH_SECRET}".encode()).hexdigest()
 REPORTS_DIR = Path("data/reports")
 BACKUPS_DIR = Path("data/backups")
+LIVE_TAIL_ROOT = Path(os.getenv("SOC_LIVE_TAIL_ROOT", "data"))
 MITRE_MAP: dict[str, tuple[str, str]] = {
     "failed-login-attempt": ("Credential Access", "T1110"),
     "possible-bruteforce": ("Credential Access", "T1110"),
@@ -135,6 +136,32 @@ def _ingest_key_valid(request: Request) -> bool:
         return True
     header_key = request.headers.get("x-api-key") or ""
     return header_key == INGEST_API_KEY
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _secure_cookies() -> bool:
+    return _env_bool("SOC_COOKIE_SECURE", _env_bool("SOC_DASHBOARD_PRODUCTION", False))
+
+
+def _security_warnings() -> list[str]:
+    warnings: list[str] = []
+    if AUTH_USER == "Change_me" or AUTH_PASSWORD == "Change_me":
+        warnings.append("default_credentials")
+    if AUTH_SECRET == "soc-dev-secret":
+        warnings.append("default_secret")
+    if not INGEST_API_KEY:
+        warnings.append("ingest_api_key_disabled")
+    if not _secure_cookies():
+        warnings.append("secure_cookies_disabled")
+    if _env_bool("SOC_LIVE_TAIL_ALLOW_ANY", False):
+        warnings.append("live_tail_unrestricted")
+    return warnings
 
 
 def _inc_metric(name: str, value: int = 1) -> None:
@@ -240,15 +267,24 @@ async def login(request: Request):
         )
 
     response = RedirectResponse("/", status_code=303)
-    response.set_cookie(SESSION_COOKIE, SESSION_TOKEN, httponly=True, samesite="strict")
-    response.set_cookie(SESSION_ROLE_COOKIE, os.getenv("SOC_DASHBOARD_ROLE", "admin"), httponly=True, samesite="strict")
+    cookie_secure = _secure_cookies()
+    response.set_cookie(SESSION_COOKIE, SESSION_TOKEN, httponly=True, samesite="strict", secure=cookie_secure)
+    response.set_cookie(
+        SESSION_ROLE_COOKIE,
+        os.getenv("SOC_DASHBOARD_ROLE", "admin"),
+        httponly=True,
+        samesite="strict",
+        secure=cookie_secure,
+    )
     return response
 
 
 @app.post("/logout")
 def logout():
     response = RedirectResponse("/login", status_code=303)
-    response.delete_cookie(SESSION_COOKIE)
+    cookie_secure = _secure_cookies()
+    response.delete_cookie(SESSION_COOKIE, secure=cookie_secure, httponly=True, samesite="strict")
+    response.delete_cookie(SESSION_ROLE_COOKIE, secure=cookie_secure, httponly=True, samesite="strict")
     return response
 
 
@@ -852,6 +888,19 @@ def _record_backup_run(action: str, status: str, backup_path: str, details: str 
         """,
         (datetime.now(UTC).isoformat(), backup_path, action, status, details),
     )
+
+
+def _validate_live_tail_path(file_path: str) -> str:
+    candidate = Path(file_path).expanduser().resolve()
+    if _env_bool("SOC_LIVE_TAIL_ALLOW_ANY", False):
+        return str(candidate)
+
+    allowed_root = LIVE_TAIL_ROOT.expanduser().resolve()
+    try:
+        candidate.relative_to(allowed_root)
+    except ValueError as exc:
+        raise ValueError(f"Live tail path must be under {allowed_root}") from exc
+    return str(candidate)
 
 
 def _run_retention_housekeeping() -> None:
@@ -1491,6 +1540,10 @@ def settings():
         "webhook_enabled": bool(os.getenv("SOC_WEBHOOK_URL", "").strip()),
         "webhook_min_severity": os.getenv("SOC_WEBHOOK_MIN_SEVERITY", "high"),
         "ingest_api_key_enabled": bool(INGEST_API_KEY),
+        "secure_cookies_enabled": _secure_cookies(),
+        "live_tail_root": str(LIVE_TAIL_ROOT.expanduser().resolve()),
+        "live_tail_restricted": not _env_bool("SOC_LIVE_TAIL_ALLOW_ANY", False),
+        "security_warnings": _security_warnings(),
     }
 
 
@@ -2639,7 +2692,10 @@ def start_live_tail(payload: dict[str, Any]):
     if error:
         return error
     assert parsed is not None
-    file_path = str(parsed.file_path).strip()
+    try:
+        file_path = _validate_live_tail_path(str(parsed.file_path).strip())
+    except ValueError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
     from_start = bool(parsed.from_start)
     interval_sec = float(parsed.interval_sec)
     try:

@@ -158,6 +158,9 @@ def test_settings_exposes_app_version() -> None:
     current = settings()
     assert "app_version" in current
     assert isinstance(current["app_version"], str)
+    assert "security_warnings" in current
+    assert isinstance(current["security_warnings"], list)
+    assert current["live_tail_restricted"] is True
 
 
 def test_health_exposes_version() -> None:

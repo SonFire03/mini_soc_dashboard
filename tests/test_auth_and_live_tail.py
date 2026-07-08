@@ -5,7 +5,14 @@ import pytest
 from starlette.requests import Request
 
 from app.database import fetch_all, init_db
-from app.main import SESSION_COOKIE, SESSION_TOKEN, _is_authenticated, tail_manager
+from app.main import (
+    SESSION_COOKIE,
+    SESSION_TOKEN,
+    _is_authenticated,
+    _validate_live_tail_path,
+    start_live_tail,
+    tail_manager,
+)
 
 DB_PATH = Path("data/soc.db")
 
@@ -78,3 +85,18 @@ def test_live_tail_ingests_new_lines() -> None:
 def test_live_tail_invalid_path() -> None:
     with pytest.raises(ValueError):
         tail_manager.start("/tmp/does-not-exist.log")
+
+
+def test_live_tail_endpoint_rejects_paths_outside_allowed_root() -> None:
+    response = start_live_tail({"file_path": "/tmp/live_tail_test.log"})
+    assert getattr(response, "status_code", 200) == 400
+
+
+def test_live_tail_path_allows_data_directory_files() -> None:
+    tail_file = Path("data/live_tail_allowed.log")
+    tail_file.write_text("", encoding="utf-8")
+
+    try:
+        assert _validate_live_tail_path(str(tail_file)).endswith("data/live_tail_allowed.log")
+    finally:
+        tail_file.unlink(missing_ok=True)

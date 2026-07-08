@@ -5,13 +5,13 @@
 
 FR/EN documentation for a lightweight SOC dashboard built with FastAPI and SQLite.
 
-Current release: **v1.3.1** (2026-05-08). See [CHANGELOG.md](CHANGELOG.md).
+Current release: **v1.4.0** (2026-07-08). See [CHANGELOG.md](CHANGELOG.md).
 
-### What Changed Since v1.3.0
-- Lifecycle migration from deprecated FastAPI `on_event` to `lifespan`.
-- CI quality gate stabilized (`ruff` + `mypy` + `pytest` with coverage threshold).
-- RBAC baseline introduced (`admin` vs `analyst`) for sensitive API routes.
-- OpenAPI examples added for ingest, alerts filtering, and case creation endpoints.
+### What Changed Since v1.3.1
+- Security posture metadata added to `GET /api/settings`.
+- Login/logout cookies now share hardened attributes and logout clears both session and role cookies.
+- Live tail is restricted to `data/` by default, configurable with `SOC_LIVE_TAIL_ROOT`.
+- Default demo credentials are consistent across code and documentation.
 
 ---
 
@@ -130,8 +130,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Accès : `http://localhost:8000`
 
 Identifiants par défaut :
-- user: `Change_moi`
-- password: `Change_moi`
+- user: `Change_me`
+- password: `Change_me`
 
 ### Lancement Docker
 ```bash
@@ -141,15 +141,21 @@ docker compose up --build
 ### Configuration (variables d’environnement)
 
 #### Auth
-- `SOC_DASHBOARD_USERNAME` (default `change_moi`)
-- `SOC_DASHBOARD_PASSWORD` (default `change_moi`)
+- `SOC_DASHBOARD_USERNAME` (default `Change_me`)
+- `SOC_DASHBOARD_PASSWORD` (default `Change_me`)
 - `SOC_DASHBOARD_SECRET`
+- `SOC_COOKIE_SECURE` (`true|false`, active le flag `Secure` sur les cookies)
+- `SOC_DASHBOARD_PRODUCTION` (`true|false`, active aussi les cookies `Secure` si `SOC_COOKIE_SECURE` n'est pas défini)
 
 
 #### Ingestion
 - `SOC_INGEST_API_KEY` (header `X-API-Key`)
 - `SOC_INGEST_RATE_LIMIT_PER_MIN` (default `120`)
 - `SOC_INGEST_MAX_BYTES` (default `5242880`)
+
+#### Live tail
+- `SOC_LIVE_TAIL_ROOT` (default `data`)
+- `SOC_LIVE_TAIL_ALLOW_ANY` (`true|false`, default `false`; à réserver aux labs locaux)
 
 #### Notifications
 - `SOC_WEBHOOK_URL`
@@ -360,6 +366,8 @@ docker compose up --build
 ### Environment variables
 - Auth: `SOC_DASHBOARD_USERNAME`, `SOC_DASHBOARD_PASSWORD`, `SOC_DASHBOARD_SECRET`
 - Ingestion: `SOC_INGEST_API_KEY`, `SOC_INGEST_RATE_LIMIT_PER_MIN`, `SOC_INGEST_MAX_BYTES`
+- Cookies: `SOC_COOKIE_SECURE`, `SOC_DASHBOARD_PRODUCTION`
+- Live tail: `SOC_LIVE_TAIL_ROOT`, `SOC_LIVE_TAIL_ALLOW_ANY`
 - Notifications: `SOC_WEBHOOK_URL`, `SOC_WEBHOOK_MIN_SEVERITY`
 - Auto-escalation: `SOC_ESCALATE_MINUTES`, `SOC_ESCALATE_ASSIGNEE`
 - Retention: `SOC_RETENTION_LOGS_DAYS`, `SOC_RETENTION_ALERTS_DAYS`, `SOC_RETENTION_EVENTS_DAYS`, `SOC_RETENTION_REPORTS_DAYS`, `SOC_RETENTION_BACKUPS_DAYS`

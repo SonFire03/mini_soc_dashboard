@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.4.0] - 2026-07-08
+
+### Added
+- Security posture metadata in `GET /api/settings`, including cookie security, live-tail restriction, and configuration warnings.
+- `SOC_COOKIE_SECURE` and `SOC_DASHBOARD_PRODUCTION` controls for secure cookies.
+- `SOC_LIVE_TAIL_ROOT` and `SOC_LIVE_TAIL_ALLOW_ANY` controls for live-tail file access.
+
+### Updated
+- Default demo credentials are now consistently `Change_me` / `Change_me`.
+- Logout clears both session and role cookies.
+- Live tail API rejects paths outside the configured root by default.
+
 ## [1.3.1] - 2026-05-08
 
 ### Added
