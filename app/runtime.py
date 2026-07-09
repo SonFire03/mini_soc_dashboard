@@ -246,11 +246,11 @@ class AuthMiddleware:
 
 
 def login_page(request: Request, error: str | None = None):
-    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+    return templates.TemplateResponse(request, "login.html", {"error": error})
 
 
 def _render_dashboard_page(request: Request, page: str, wallboard: bool = False):
-    return templates.TemplateResponse("index.html", {"request": request, "wallboard": wallboard, "page": page})
+    return templates.TemplateResponse(request, "index.html", {"wallboard": wallboard, "page": page})
 
 
 async def login(request: Request):
@@ -259,8 +259,9 @@ async def login(request: Request):
     password = str(form.get("password") or "")
     if username != AUTH_USER or password != AUTH_PASSWORD:
         return templates.TemplateResponse(
+            request,
             "login.html",
-            {"request": request, "error": "Invalid credentials"},
+            {"error": "Invalid credentials"},
             status_code=401,
         )
 
