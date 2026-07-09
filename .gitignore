@@ -36,3 +36,6 @@ venv/
 
 # Optional local logs
 *.log
+
+# Local scratch files
+test.py

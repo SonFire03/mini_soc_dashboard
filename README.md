@@ -2,6 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/SonFire03/mini_soc_dashboard)](https://github.com/SonFire03/mini_soc_dashboard/releases)
 [![CI](https://github.com/SonFire03/mini_soc_dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/SonFire03/mini_soc_dashboard/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/SonFire03/mini_soc_dashboard)](LICENSE)
 
 FR/EN documentation for a lightweight SOC dashboard built with FastAPI and SQLite.
 
@@ -139,8 +140,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Accès : `http://localhost:8000`
 
 Identifiants par défaut :
-- user: `admin`
-- password: `admin123`
+- user: `Change_me`
+- password: `Change_me`
 
 ### Lancement Docker
 ```bash
@@ -150,8 +151,8 @@ docker compose up --build
 ### Configuration (variables d’environnement)
 
 #### Auth
-- `SOC_DASHBOARD_USERNAME` (default `admin`)
-- `SOC_DASHBOARD_PASSWORD` (default `admin123`)
+- `SOC_DASHBOARD_USERNAME` (default `Change_me`)
+- `SOC_DASHBOARD_PASSWORD` (default `Change_me`)
 - `SOC_DASHBOARD_SECRET`
 - `SOC_COOKIE_SECURE` (`true|false`, active le flag `Secure` sur les cookies)
 - `SOC_DASHBOARD_PRODUCTION` (`true|false`, active aussi les cookies `Secure` si `SOC_COOKIE_SECURE` n'est pas défini)
@@ -320,6 +321,8 @@ It is designed for local SOC demos, detection labs, and as a practical baseline 
 - Detection rules (single-event and batch/correlated).
 - IOC watchlist with severity override.
 - Alert lifecycle management.
+- Multi-page navigation (`Overview`, `Investigations`, `Operations`, `Reports`, `Admin`).
+- Multilingual UI with flags and RTL support for Arabic.
 - Incident timeline + case management.
 - Asset mapping and suppression rules.
 - Policy engine (auto-create case/escalate/notify).
@@ -344,12 +347,16 @@ It is designed for local SOC demos, detection labs, and as a practical baseline 
 
 ### Project layout
 ```text
-app/        # API, detection, parsing, schemas, UI assets
-actions/    # (none, CI is under .github/workflows)
-config/     # rule configuration
-data/       # sample data
-alembic/    # DB migrations
-tests/      # test suite
+app/
+  main.py       # FastAPI app assembly
+  runtime.py    # core application logic
+  routes/       # domain routers
+  static/       # frontend JS/CSS
+  templates/    # HTML templates
+config/         # rule configuration
+data/           # sample data
+alembic/        # DB migrations
+tests/          # test suite
 ```
 
 ### Local setup

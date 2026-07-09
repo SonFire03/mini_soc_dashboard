@@ -124,7 +124,7 @@ const SOC_TRANSLATIONS = {
     "label.reportsNavigation": "Reports Navigation",
     "label.adminNavigation": "Admin Navigation",
     "login.required": "Authentication required.",
-    "login.hint": "Default: admin / admin123 (change with env vars).",
+    "login.hint": "Default: Change_me / Change_me (change with env vars).",
     "status.shortcuts": "Shortcuts: Ctrl+K palette, / search, r refresh, t tail.",
     "status.workspaceHelp": "Drag separators to resize Alerts, Investigation, and Logs.",
     "status.noRiskData": "No risk data.",
