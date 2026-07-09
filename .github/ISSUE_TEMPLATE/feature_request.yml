@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose a product or engineering improvement
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem are you trying to solve?
+      placeholder: Describe the current limitation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the change you want to see.
+      placeholder: Describe the expected behavior or capability.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Mention any workaround or alternative you evaluated.
+      placeholder: Optional
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected impact
+      description: Explain why this is worth building.
+      placeholder: Who benefits and how?
