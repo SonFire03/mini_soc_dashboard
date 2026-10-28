@@ -15,8 +15,15 @@ branch_labels = None
 depends_on = None
 
 
+def _execute_script(sql: str) -> None:
+    """Run each statement separately: sqlite3 refuses multi-statement execute()."""
+    for statement in sql.split(";"):
+        if statement.strip():
+            op.execute(statement)
+
+
 def upgrade() -> None:
-    op.execute(
+    _execute_script(
         """
         CREATE TABLE IF NOT EXISTS logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -199,7 +206,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
+    _execute_script(
         """
         DROP TABLE IF EXISTS backup_runs;
         DROP TABLE IF EXISTS policies;
