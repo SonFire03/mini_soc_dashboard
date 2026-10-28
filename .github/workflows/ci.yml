@@ -22,7 +22,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Alembic upgrade
-        run: alembic upgrade head
+        run: |
+          mkdir -p data
+          alembic upgrade head
       - name: Ruff
         run: ruff check .
       - name: Mypy
